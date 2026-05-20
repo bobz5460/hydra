@@ -58,6 +58,9 @@ const defaultState = {
 
 const ensureStateShape = (rawState = {}) => {
   const safe = rawState && typeof rawState === "object" ? rawState : {};
+  const ensureArray = (value, fallback = []) =>
+    Array.isArray(value) ? value : fallback;
+
   return {
     ...defaultState,
     ...safe,
@@ -65,20 +68,14 @@ const ensureStateShape = (rawState = {}) => {
       ...defaultState.user,
       ...(safe.user && typeof safe.user === "object" ? safe.user : {}),
     },
-    games: Array.isArray(safe.games) ? safe.games : [],
-    artifacts: Array.isArray(safe.artifacts) ? safe.artifacts : [],
-    downloadSources: Array.isArray(safe.downloadSources)
-      ? safe.downloadSources
-      : [],
-    collections: Array.isArray(safe.collections) ? safe.collections : [],
-    friendRequests: Array.isArray(safe.friendRequests)
-      ? safe.friendRequests
-      : [],
-    blockedUserIds: Array.isArray(safe.blockedUserIds)
-      ? safe.blockedUserIds
-      : [],
-    notifications: Array.isArray(safe.notifications) ? safe.notifications : [],
-    badges: Array.isArray(safe.badges) ? safe.badges : defaultState.badges,
+    games: ensureArray(safe.games),
+    artifacts: ensureArray(safe.artifacts),
+    downloadSources: ensureArray(safe.downloadSources),
+    collections: ensureArray(safe.collections),
+    friendRequests: ensureArray(safe.friendRequests),
+    blockedUserIds: ensureArray(safe.blockedUserIds),
+    notifications: ensureArray(safe.notifications),
+    badges: ensureArray(safe.badges, defaultState.badges),
   };
 };
 

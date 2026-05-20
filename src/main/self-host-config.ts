@@ -1,3 +1,6 @@
+const DEFAULT_SELF_HOST_API_PORT = "4000";
+const DEFAULT_SELF_HOST_WS_PORT = "4001";
+
 const normalizeBaseUrl = (value?: string) => {
   const trimmed = value?.trim();
   if (!trimmed) return "";
@@ -10,8 +13,8 @@ const deriveWsUrlFromBaseUrl = (baseUrl: string) => {
     const protocol = parsed.protocol === "https:" ? "wss:" : "ws:";
     const explicitWsPort = import.meta.env.MAIN_VITE_SELF_HOST_WS_PORT?.trim();
     const fallbackPort =
-      parsed.port === "4000"
-        ? "4001"
+      parsed.port === DEFAULT_SELF_HOST_API_PORT
+        ? DEFAULT_SELF_HOST_WS_PORT
         : parsed.port || (protocol === "wss:" ? "443" : "80");
     const wsPort = explicitWsPort || fallbackPort;
     const hostWithPort = wsPort

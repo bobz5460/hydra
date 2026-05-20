@@ -12,8 +12,16 @@ It provides:
 
 ```bash
 cd backend
-cp .env.example .env
 npm install
+npm start
+```
+
+If you want custom values, export env vars before starting:
+
+```bash
+export PORT=4000
+export WS_PORT=4001
+export PUBLIC_BASE_URL=http://localhost:4000
 npm start
 ```
 

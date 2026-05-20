@@ -3,6 +3,7 @@ import { registerEvent } from "../register-event";
 import { HydraApi } from "@main/services";
 import { db, levelKeys } from "@main/level";
 import type { Auth } from "@types";
+import { SelfHostConfig } from "@main/self-host-config";
 
 const openCheckout = async (_event: Electron.IpcMainInvokeEvent) => {
   const auth = await db.get<string, Auth>(levelKeys.auth, {
@@ -22,7 +23,7 @@ const openCheckout = async (_event: Electron.IpcMainInvokeEvent) => {
   });
 
   shell.openExternal(
-    `${import.meta.env.MAIN_VITE_CHECKOUT_URL}?${params.toString()}`
+    `${SelfHostConfig.checkoutUrl}?${params.toString()}`
   );
 };
 

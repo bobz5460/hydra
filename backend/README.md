@@ -7,6 +7,7 @@ It provides:
 - a minimal auth web flow page that redirects to `hydralauncher://auth`
 - a WebSocket server that responds to `PING` with `PONG`
 - artifact upload/download storage on local disk
+- starter coverage for friend requests, notifications, badges, profile stats/library, and achievements reset routes used by the launcher UI
 
 ## 1) Run locally
 
@@ -34,7 +35,23 @@ docker compose up -d --build
 
 ## 3) Point Hydra Launcher to this backend
 
-Set these values in the launcher environment:
+Set these values in the launcher environment.
+
+### Recommended (easy mode)
+
+Use one base URL and enable self-host cloud:
+
+```env
+MAIN_VITE_SELF_HOST_BASE_URL=http://localhost:4000
+MAIN_VITE_SELF_HOST_WS_PORT=4001
+MAIN_VITE_SELF_HOST_CLOUD=true
+RENDERER_VITE_SELF_HOST_CLOUD=true
+```
+
+The launcher will derive API/auth/checkout/nimbus URLs from `MAIN_VITE_SELF_HOST_BASE_URL`.
+You can still override with the explicit variables below.
+
+### Explicit (fully manual)
 
 ```env
 MAIN_VITE_API_URL=http://localhost:4000

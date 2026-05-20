@@ -24,6 +24,7 @@ import { t } from "i18next";
 import { orderBy, slice } from "lodash-es";
 import path from "node:path";
 import UserAgent from "user-agents";
+import { SelfHostConfig } from "@main/self-host-config";
 import { HydraApi } from "./hydra-api";
 import { logger } from "./logger";
 
@@ -361,7 +362,7 @@ export class WindowManager {
       if (!app.isPackaged) authWindow.webContents.openDevTools();
 
       authWindow.loadURL(
-        `${import.meta.env.MAIN_VITE_AUTH_URL}${page}?${searchParams.toString()}`
+        `${SelfHostConfig.authUrl}${page}?${searchParams.toString()}`
       );
 
       authWindow.once("ready-to-show", () => {

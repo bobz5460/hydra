@@ -41,15 +41,50 @@ const defaultState = {
   artifacts: [],
   downloadSources: [],
   collections: [],
+  friendRequests: [],
+  blockedUserIds: [],
+  notifications: [],
+  badges: [
+    {
+      name: "self_hosted",
+      title: "Self Hosted",
+      description: "Using Hydra in self-host mode",
+      badge: {
+        url: "https://raw.githubusercontent.com/hydralauncher/hydra/refs/heads/main/resources/icon.png",
+      },
+    },
+  ],
+};
+
+const ensureStateShape = (rawState = {}) => {
+  const safe = rawState && typeof rawState === "object" ? rawState : {};
+  return {
+    ...defaultState,
+    ...safe,
+    user: {
+      ...defaultState.user,
+      ...(safe.user && typeof safe.user === "object" ? safe.user : {}),
+    },
+    games: Array.isArray(safe.games) ? safe.games : [],
+    artifacts: Array.isArray(safe.artifacts) ? safe.artifacts : [],
+    downloadSources: Array.isArray(safe.downloadSources)
+      ? safe.downloadSources
+      : [],
+    collections: Array.isArray(safe.collections) ? safe.collections : [],
+    friendRequests: Array.isArray(safe.friendRequests) ? safe.friendRequests : [],
+    blockedUserIds: Array.isArray(safe.blockedUserIds) ? safe.blockedUserIds : [],
+    notifications: Array.isArray(safe.notifications) ? safe.notifications : [],
+    badges: Array.isArray(safe.badges) ? safe.badges : defaultState.badges,
+  };
 };
 
 const loadState = () => {
   try {
-    if (!fs.existsSync(STATE_PATH)) return { ...defaultState };
+    if (!fs.existsSync(STATE_PATH)) return ensureStateShape();
     const raw = fs.readFileSync(STATE_PATH, "utf8");
-    return { ...defaultState, ...JSON.parse(raw) };
+    return ensureStateShape(JSON.parse(raw));
   } catch {
-    return { ...defaultState };
+    return ensureStateShape();
   }
 };
 
@@ -118,6 +153,42 @@ const routeMatch = (pathname, pattern) => {
   }
 
   return params;
+};
+
+const getRequestData = (body) => {
+  if (body && typeof body === "object" && body.data && typeof body.data === "object") {
+    return body.data;
+  }
+
+  return body && typeof body === "object" ? body : {};
+};
+
+const buildUserGame = (game) => {
+  const unlockedAchievementCount = Array.isArray(game.achievements)
+    ? game.achievements.length
+    : 0;
+
+  return {
+    objectId: game.objectId,
+    shop: game.shop,
+    title: game.title || `${game.shop}:${game.objectId}`,
+    playTimeInSeconds: Math.floor((game.playTimeInMilliseconds || 0) / 1000),
+    lastTimePlayed: game.lastTimePlayed ?? null,
+    unlockedAchievementCount,
+    achievementCount: unlockedAchievementCount,
+    achievementsPointsEarnedSum: 0,
+    hasManuallyUpdatedPlaytime: false,
+    isFavorite: !!game.isFavorite,
+    isPinned: !!game.isPinned,
+    pinnedDate: null,
+    iconUrl: null,
+    libraryHeroImageUrl: null,
+    libraryImageUrl: null,
+    logoImageUrl: null,
+    logoPosition: null,
+    coverImageUrl: null,
+    downloadSources: [],
+  };
 };
 
 const findOrCreateGame = (shop, objectId) => {
@@ -261,6 +332,19 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, []);
   }
 
+  const gameDownloadSourcesRoute = routeMatch(
+    pathname,
+    "/games/:shop/:objectId/download-sources"
+  );
+  if (method === "GET" && gameDownloadSourcesRoute) {
+    return sendJson(res, 200, []);
+  }
+
+  const gameDownloadRoute = routeMatch(pathname, "/games/:shop/:objectId/download");
+  if (method === "POST" && gameDownloadRoute) {
+    return sendJson(res, 200, { ok: true });
+  }
+
   if (method === "GET" && pathname === "/profile/games") {
     return sendJson(res, 200, state.games);
   }
@@ -297,6 +381,15 @@ const server = http.createServer(async (req, res) => {
       });
     }
     return sendJson(res, 404, { error: "Game not found" });
+  }
+
+  const gameAchievementsRoute = routeMatch(pathname, "/profile/games/achievements/:id");
+  if (method === "DELETE" && gameAchievementsRoute) {
+    const game = state.games.find((candidate) => candidate.id === gameAchievementsRoute.id);
+    if (!game) return sendJson(res, 404, { error: "Game not found" });
+    game.achievements = [];
+    saveState();
+    return sendJson(res, 200, { ok: true });
   }
 
   const gameByShopAndObjectId = routeMatch(
@@ -532,6 +625,203 @@ const server = http.createServer(async (req, res) => {
   }
 
   const userRoute = routeMatch(pathname, "/users/:id");
+
+  const userStatsRoute = routeMatch(pathname, "/users/:id/stats");
+  if (method === "GET" && userStatsRoute) {
+    const totalPlayTimeInSeconds = Math.floor(
+      state.games.reduce(
+        (acc, game) => acc + Number(game.playTimeInMilliseconds || 0),
+        0
+      ) / 1000
+    );
+    const unlockedAchievementSum = state.games.reduce((acc, game) => {
+      const count = Array.isArray(game.achievements) ? game.achievements.length : 0;
+      return acc + count;
+    }, 0);
+
+    return sendJson(res, 200, {
+      libraryCount: state.games.length,
+      friendsCount: 0,
+      totalPlayTimeInSeconds: {
+        value: totalPlayTimeInSeconds,
+        topPercentile: 0,
+      },
+      achievementsPointsEarnedSum: {
+        value: 0,
+        topPercentile: 0,
+      },
+      unlockedAchievementSum,
+    });
+  }
+
+  const userLibraryRoute = routeMatch(pathname, "/users/:id/library");
+  if (method === "GET" && userLibraryRoute) {
+    const take = Math.max(1, Number(searchParams.get("take") || 12));
+    const skip = Math.max(0, Number(searchParams.get("skip") || 0));
+    const sortBy = searchParams.get("sortBy") || "lastTimePlayed";
+
+    const games = state.games
+      .map(buildUserGame)
+      .toSorted((a, b) => {
+        if (sortBy === "playTimeInSeconds") {
+          return (b.playTimeInSeconds || 0) - (a.playTimeInSeconds || 0);
+        }
+        return (
+          new Date(b.lastTimePlayed ?? 0).getTime() -
+          new Date(a.lastTimePlayed ?? 0).getTime()
+        );
+      });
+
+    return sendJson(res, 200, {
+      library: games.slice(skip, skip + take),
+      pinnedGames: games.filter((game) => game.isPinned),
+    });
+  }
+
+  const compareAchievementsRoute = routeMatch(
+    pathname,
+    "/users/:id/games/achievements/compare"
+  );
+  if (method === "GET" && compareAchievementsRoute) {
+    return sendJson(res, 200, {
+      achievementsPointsTotal: 0,
+      owner: {
+        totalAchievementCount: 0,
+        unlockedAchievementCount: 0,
+        achievementsPointsEarnedSum: 0,
+      },
+      target: {
+        displayName: state.user.displayName,
+        profileImageUrl: state.user.profileImageUrl || "",
+        totalAchievementCount: 0,
+        unlockedAchievementCount: 0,
+        achievementsPointsEarnedSum: 0,
+      },
+      achievements: [],
+    });
+  }
+
+  if (method === "GET" && pathname === "/profile/friend-requests") {
+    return sendJson(res, 200, state.friendRequests);
+  }
+
+  if (method === "POST" && pathname === "/profile/friend-requests") {
+    const body = getRequestData((await readBody(req)) || {});
+    const id = String(body.friendCode || body.id || crypto.randomUUID());
+    const existing = state.friendRequests.find((request) => request.id === id);
+
+    if (!existing) {
+      state.friendRequests.push({
+        id,
+        displayName: body.displayName || `User ${id}`,
+        profileImageUrl: null,
+        type: "SENT",
+      });
+      saveState();
+    }
+
+    return sendJson(res, 200, { ok: true });
+  }
+
+  const friendRequestRoute = routeMatch(pathname, "/profile/friend-requests/:id");
+  if (friendRequestRoute && (method === "PATCH" || method === "DELETE")) {
+    state.friendRequests = state.friendRequests.filter(
+      (request) => request.id !== friendRequestRoute.id
+    );
+    saveState();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === "GET" && pathname === "/profile/notifications") {
+    const filter = searchParams.get("filter") || "all";
+    const take = Math.max(1, Number(searchParams.get("take") || 20));
+    const skip = Math.max(0, Number(searchParams.get("skip") || 0));
+    const notifications = state.notifications.toSorted(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    const filtered =
+      filter === "unread"
+        ? notifications.filter((notification) => !notification.isRead)
+        : notifications;
+    const page = filtered.slice(skip, skip + take);
+
+    return sendJson(res, 200, {
+      notifications: page,
+      pagination: {
+        total: filtered.length,
+        take,
+        skip,
+        hasMore: skip + take < filtered.length,
+      },
+    });
+  }
+
+  if (method === "GET" && pathname === "/profile/notifications/count") {
+    return sendJson(res, 200, {
+      count: state.notifications.filter((notification) => !notification.isRead)
+        .length,
+    });
+  }
+
+  if (method === "PATCH" && pathname === "/profile/notifications/all/read") {
+    state.notifications = state.notifications.map((notification) => ({
+      ...notification,
+      isRead: true,
+    }));
+    saveState();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  const profileNotificationReadRoute = routeMatch(
+    pathname,
+    "/profile/notifications/:id/read"
+  );
+  if (method === "PATCH" && profileNotificationReadRoute) {
+    const notification = state.notifications.find(
+      (candidate) => candidate.id === profileNotificationReadRoute.id
+    );
+    if (notification) notification.isRead = true;
+    saveState();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  const profileNotificationRoute = routeMatch(pathname, "/profile/notifications/:id");
+  if (method === "DELETE" && profileNotificationRoute) {
+    state.notifications = state.notifications.filter(
+      (candidate) => candidate.id !== profileNotificationRoute.id
+    );
+    saveState();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === "DELETE" && pathname === "/profile/notifications/all") {
+    state.notifications = [];
+    saveState();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  const blockUserRoute = routeMatch(pathname, "/users/:id/block");
+  if (method === "POST" && blockUserRoute) {
+    if (!state.blockedUserIds.includes(blockUserRoute.id)) {
+      state.blockedUserIds.push(blockUserRoute.id);
+      saveState();
+    }
+    return sendJson(res, 200, { ok: true });
+  }
+
+  const unblockUserRoute = routeMatch(pathname, "/users/:id/unblock");
+  if (method === "POST" && unblockUserRoute) {
+    state.blockedUserIds = state.blockedUserIds.filter(
+      (id) => id !== unblockUserRoute.id
+    );
+    saveState();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === "GET" && pathname === "/badges") {
+    return sendJson(res, 200, state.badges);
+  }
+
   if (method === "GET" && userRoute) {
     return sendJson(res, 200, {
       id: userRoute.id,

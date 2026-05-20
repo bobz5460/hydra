@@ -12,6 +12,7 @@ import { db } from "@main/level";
 import { levelKeys } from "@main/level/sublevels";
 import type { Auth, User } from "@types";
 import { WSClient } from "./ws";
+import { SelfHostConfig } from "@main/self-host-config";
 
 const isSelfHostedCloudEnabled = (() => {
   const value = import.meta.env.MAIN_VITE_SELF_HOST_CLOUD?.toLowerCase();
@@ -135,7 +136,7 @@ export class HydraApi {
 
   static async setupApi() {
     this.instance = axios.create({
-      baseURL: import.meta.env.MAIN_VITE_API_URL,
+      baseURL: SelfHostConfig.apiUrl,
       headers: { "User-Agent": `Hydra Launcher v${appVersion}` },
     });
 

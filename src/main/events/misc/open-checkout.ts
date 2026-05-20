@@ -22,9 +22,7 @@ const openCheckout = async (_event: Electron.IpcMainInvokeEvent) => {
     token: paymentToken,
   });
 
-  shell.openExternal(
-    `${SelfHostConfig.checkoutUrl}?${params.toString()}`
-  );
+  shell.openExternal(`${SelfHostConfig.checkoutUrl}?${params.toString()}`);
 };
 
 registerEvent("openCheckout", openCheckout);

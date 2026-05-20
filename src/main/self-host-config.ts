@@ -14,7 +14,9 @@ const deriveWsUrlFromBaseUrl = (baseUrl: string) => {
         ? "4001"
         : parsed.port || (protocol === "wss:" ? "443" : "80");
     const wsPort = explicitWsPort || fallbackPort;
-    const hostWithPort = wsPort ? `${parsed.hostname}:${wsPort}` : parsed.hostname;
+    const hostWithPort = wsPort
+      ? `${parsed.hostname}:${wsPort}`
+      : parsed.hostname;
     return `${protocol}//${hostWithPort}`;
   } catch {
     return "";

@@ -71,8 +71,12 @@ const ensureStateShape = (rawState = {}) => {
       ? safe.downloadSources
       : [],
     collections: Array.isArray(safe.collections) ? safe.collections : [],
-    friendRequests: Array.isArray(safe.friendRequests) ? safe.friendRequests : [],
-    blockedUserIds: Array.isArray(safe.blockedUserIds) ? safe.blockedUserIds : [],
+    friendRequests: Array.isArray(safe.friendRequests)
+      ? safe.friendRequests
+      : [],
+    blockedUserIds: Array.isArray(safe.blockedUserIds)
+      ? safe.blockedUserIds
+      : [],
     notifications: Array.isArray(safe.notifications) ? safe.notifications : [],
     badges: Array.isArray(safe.badges) ? safe.badges : defaultState.badges,
   };
@@ -156,7 +160,12 @@ const routeMatch = (pathname, pattern) => {
 };
 
 const getRequestData = (body) => {
-  if (body && typeof body === "object" && body.data && typeof body.data === "object") {
+  if (
+    body &&
+    typeof body === "object" &&
+    body.data &&
+    typeof body.data === "object"
+  ) {
     return body.data;
   }
 
@@ -340,7 +349,10 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, []);
   }
 
-  const gameDownloadRoute = routeMatch(pathname, "/games/:shop/:objectId/download");
+  const gameDownloadRoute = routeMatch(
+    pathname,
+    "/games/:shop/:objectId/download"
+  );
   if (method === "POST" && gameDownloadRoute) {
     return sendJson(res, 200, { ok: true });
   }
@@ -383,9 +395,14 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 404, { error: "Game not found" });
   }
 
-  const gameAchievementsRoute = routeMatch(pathname, "/profile/games/achievements/:id");
+  const gameAchievementsRoute = routeMatch(
+    pathname,
+    "/profile/games/achievements/:id"
+  );
   if (method === "DELETE" && gameAchievementsRoute) {
-    const game = state.games.find((candidate) => candidate.id === gameAchievementsRoute.id);
+    const game = state.games.find(
+      (candidate) => candidate.id === gameAchievementsRoute.id
+    );
     if (!game) return sendJson(res, 404, { error: "Game not found" });
     game.achievements = [];
     saveState();
@@ -635,7 +652,9 @@ const server = http.createServer(async (req, res) => {
       ) / 1000
     );
     const unlockedAchievementSum = state.games.reduce((acc, game) => {
-      const count = Array.isArray(game.achievements) ? game.achievements.length : 0;
+      const count = Array.isArray(game.achievements)
+        ? game.achievements.length
+        : 0;
       return acc + count;
     }, 0);
 
@@ -660,17 +679,15 @@ const server = http.createServer(async (req, res) => {
     const skip = Math.max(0, Number(searchParams.get("skip") || 0));
     const sortBy = searchParams.get("sortBy") || "lastTimePlayed";
 
-    const games = state.games
-      .map(buildUserGame)
-      .toSorted((a, b) => {
-        if (sortBy === "playTimeInSeconds") {
-          return (b.playTimeInSeconds || 0) - (a.playTimeInSeconds || 0);
-        }
-        return (
-          new Date(b.lastTimePlayed ?? 0).getTime() -
-          new Date(a.lastTimePlayed ?? 0).getTime()
-        );
-      });
+    const games = state.games.map(buildUserGame).toSorted((a, b) => {
+      if (sortBy === "playTimeInSeconds") {
+        return (b.playTimeInSeconds || 0) - (a.playTimeInSeconds || 0);
+      }
+      return (
+        new Date(b.lastTimePlayed ?? 0).getTime() -
+        new Date(a.lastTimePlayed ?? 0).getTime()
+      );
+    });
 
     return sendJson(res, 200, {
       library: games.slice(skip, skip + take),
@@ -723,7 +740,10 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { ok: true });
   }
 
-  const friendRequestRoute = routeMatch(pathname, "/profile/friend-requests/:id");
+  const friendRequestRoute = routeMatch(
+    pathname,
+    "/profile/friend-requests/:id"
+  );
   if (friendRequestRoute && (method === "PATCH" || method === "DELETE")) {
     state.friendRequests = state.friendRequests.filter(
       (request) => request.id !== friendRequestRoute.id
@@ -737,7 +757,8 @@ const server = http.createServer(async (req, res) => {
     const take = Math.max(1, Number(searchParams.get("take") || 20));
     const skip = Math.max(0, Number(searchParams.get("skip") || 0));
     const notifications = state.notifications.toSorted(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
     const filtered =
       filter === "unread"
@@ -785,7 +806,10 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { ok: true });
   }
 
-  const profileNotificationRoute = routeMatch(pathname, "/profile/notifications/:id");
+  const profileNotificationRoute = routeMatch(
+    pathname,
+    "/profile/notifications/:id"
+  );
   if (method === "DELETE" && profileNotificationRoute) {
     state.notifications = state.notifications.filter(
       (candidate) => candidate.id !== profileNotificationRoute.id

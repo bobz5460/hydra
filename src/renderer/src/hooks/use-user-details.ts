@@ -13,6 +13,11 @@ import type {
   FriendRequest,
 } from "@types";
 
+const isSelfHostedCloudEnabled = (() => {
+  const value = import.meta.env.RENDERER_VITE_SELF_HOST_CLOUD?.toLowerCase();
+  return value === "true" || value === "1" || value === "yes" || value === "on";
+})();
+
 export function useUserDetails() {
   const dispatch = useAppDispatch();
 
@@ -127,6 +132,10 @@ export function useUserDetails() {
     globalThis.window.electron.hydraApi.post(`/users/${userId}/unblock`);
 
   const hasActiveSubscription = useMemo(() => {
+    if (isSelfHostedCloudEnabled) {
+      return true;
+    }
+
     const expiresAt = new Date(userDetails?.subscription?.expiresAt ?? 0);
     return expiresAt > new Date();
   }, [userDetails]);

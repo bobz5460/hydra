@@ -13,6 +13,11 @@ import { levelKeys } from "@main/level/sublevels";
 import type { Auth, User } from "@types";
 import { WSClient } from "./ws";
 
+const isSelfHostedCloudEnabled = (() => {
+  const value = import.meta.env.MAIN_VITE_SELF_HOST_CLOUD?.toLowerCase();
+  return value === "true" || value === "1" || value === "yes" || value === "on";
+})();
+
 export interface HydraApiOptions {
   needsAuth?: boolean;
   needsSubscription?: boolean;
@@ -48,6 +53,10 @@ export class HydraApi {
   }
 
   public static hasActiveSubscription() {
+    if (isSelfHostedCloudEnabled) {
+      return true;
+    }
+
     const expiresAt = new Date(this.userAuth.subscription?.expiresAt ?? 0);
     return expiresAt > new Date();
   }

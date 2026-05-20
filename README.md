@@ -31,8 +31,8 @@ Please, refer to our Documentation pages: [docs.hydralauncher.gg](https://docs.h
 
 ## Self-host backend starter
 
-A deployable self-host backend starter (API, auth callback page, and WebSocket service) is available at `/home/runner/work/hydra/hydra/backend`.
-See `/home/runner/work/hydra/hydra/backend/README.md` for setup and Docker Compose usage.
+A deployable self-host backend starter (API, auth callback page, and WebSocket service) is available at `./backend`.
+See `./backend/README.md` for setup and Docker Compose usage.
 
 ### Local development requirements
 

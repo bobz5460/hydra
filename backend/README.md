@@ -11,7 +11,7 @@ It provides:
 ## 1) Run locally
 
 ```bash
-cd /home/runner/work/hydra/hydra/backend
+cd backend
 cp .env.example .env
 npm install
 npm start
@@ -20,7 +20,7 @@ npm start
 ## 2) Run with Docker Compose
 
 ```bash
-cd /home/runner/work/hydra/hydra/backend
+cd backend
 docker compose up -d --build
 ```
 

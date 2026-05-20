@@ -284,7 +284,7 @@ const server = http.createServer(async (req, res) => {
         achievements: game.achievements,
       });
     }
-    return sendJson(res, 200, undefined);
+    return sendJson(res, 404, { error: 'Game not found' });
   }
 
   const gameByShopAndObjectId = routeMatch(pathname, '/profile/games/:shop/:objectId');

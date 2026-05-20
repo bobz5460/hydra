@@ -1,10 +1,10 @@
-import { levelKeys, gamesSublevel, db } from "@main/level";
+import { levelKeys, gamesSublevel } from "@main/level";
 import path from "node:path";
 import * as tar from "tar";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
-import type { GameShop, User } from "@types";
+import type { GameShop } from "@types";
 import { backupsPath } from "@main/constants";
 import { HydraApi } from "./hydra-api";
 import { normalizePath, parseRegFile } from "@main/helpers";
@@ -107,14 +107,7 @@ export class CloudSync {
     downloadOptionTitle: string | null,
     label?: string
   ) {
-    const hasActiveSubscription = await db
-      .get<string, User>(levelKeys.user, { valueEncoding: "json" })
-      .then((user) => {
-        const expiresAt = new Date(user?.subscription?.expiresAt ?? 0);
-        return expiresAt > new Date();
-      });
-
-    if (!hasActiveSubscription) {
+    if (!HydraApi.hasActiveSubscription()) {
       throw new SubscriptionRequiredError();
     }
 

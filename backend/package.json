@@ -1,0 +1,19 @@
+{
+  "name": "hydra-selfhost-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-host starter backend for Hydra Launcher",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "hydra",
+    "self-host",
+    "backend"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "ws": "8.20.1"
+  }
+}

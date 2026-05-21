@@ -299,7 +299,8 @@ const defaultCatalogueGames = [
     releaseDate: "2013-07-09",
     protondbSupportBadges: ["gold"],
     deckCompatibilities: ["playable", "verified"],
-    description: "Every day, millions enter battle as one of over a hundred heroes.",
+    description:
+      "Every day, millions enter battle as one of over a hundred heroes.",
   },
   {
     id: "1091500",
@@ -371,7 +372,8 @@ const defaultCatalogueGames = [
     releaseDate: "2020-11-04",
     protondbSupportBadges: ["silver"],
     deckCompatibilities: ["playable"],
-    description: "A free-to-play hero shooter where legendary characters battle.",
+    description:
+      "A free-to-play hero shooter where legendary characters battle.",
   },
   {
     id: "1086940",
@@ -621,7 +623,11 @@ const server = http.createServer(async (req, res) => {
 
   if (method === "POST" && pathname === "/profile/download-sources") {
     const body = getRequestData((await readBody(req)) || {});
-    const urls = Array.isArray(body.urls) ? body.urls : body.url ? [body.url] : [];
+    const urls = Array.isArray(body.urls)
+      ? body.urls
+      : body.url
+        ? [body.url]
+        : [];
     const syncedSources = urls
       .map((sourceUrl) => upsertDownloadSourceByUrl(sourceUrl))
       .filter(Boolean);
@@ -717,7 +723,9 @@ const server = http.createServer(async (req, res) => {
       .trim()
       .toLowerCase();
 
-    const sourceIdsFromFingerprint = Array.isArray(body.downloadSourceFingerprints)
+    const sourceIdsFromFingerprint = Array.isArray(
+      body.downloadSourceFingerprints
+    )
       ? state.downloadSources
           .filter((source) =>
             body.downloadSourceFingerprints.includes(source.fingerprint)
@@ -778,12 +786,17 @@ const server = http.createServer(async (req, res) => {
         Array.isArray(body.protondbSupportBadges) &&
         body.protondbSupportBadges.length > 0
       ) {
-        if (!intersects(game.protondbSupportBadges, body.protondbSupportBadges)) {
+        if (
+          !intersects(game.protondbSupportBadges, body.protondbSupportBadges)
+        ) {
           return false;
         }
       }
 
-      if (Array.isArray(body.deckCompatibility) && body.deckCompatibility.length) {
+      if (
+        Array.isArray(body.deckCompatibility) &&
+        body.deckCompatibility.length
+      ) {
         if (!intersects(game.deckCompatibilities, body.deckCompatibility)) {
           return false;
         }
@@ -802,7 +815,8 @@ const server = http.createServer(async (req, res) => {
           return a.title.localeCompare(b.title) * sortDirection;
         case "releaseDate":
           return (
-            (new Date(a.releaseDate).getTime() - new Date(b.releaseDate).getTime()) *
+            (new Date(a.releaseDate).getTime() -
+              new Date(b.releaseDate).getTime()) *
             sortDirection
           );
         case "hydraScore":
@@ -826,7 +840,10 @@ const server = http.createServer(async (req, res) => {
       deckCompatibilities: game.deckCompatibilities,
       deckCompatibility: game.deckCompatibilities[0] ?? null,
       libraryImageUrl: game.libraryImageUrl ?? null,
-      downloadSources: toCatalogueDownloadSourceNames(game, selectedOrAllSourceIds),
+      downloadSources: toCatalogueDownloadSourceNames(
+        game,
+        selectedOrAllSourceIds
+      ),
     }));
 
     return sendJson(res, 200, {
@@ -841,7 +858,10 @@ const server = http.createServer(async (req, res) => {
 
     const take = Math.max(1, Number(searchParams.get("take") || 12));
     const skip = Math.max(0, Number(searchParams.get("skip") || 0));
-    const downloadSourceIds = parseArrayQueryParam(searchParams, "downloadSourceIds");
+    const downloadSourceIds = parseArrayQueryParam(
+      searchParams,
+      "downloadSourceIds"
+    );
     const selectedSourceIds = downloadSourceIds.length
       ? new Set(downloadSourceIds)
       : null;
@@ -937,7 +957,10 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { hasReviewed });
   }
 
-  const gameReviewsRoute = routeMatch(pathname, "/games/:shop/:objectId/reviews");
+  const gameReviewsRoute = routeMatch(
+    pathname,
+    "/games/:shop/:objectId/reviews"
+  );
   if (gameReviewsRoute && method === "GET") {
     ensureCatalogueGames();
     const take = Math.max(1, Number(searchParams.get("take") || 20));
@@ -946,8 +969,10 @@ const server = http.createServer(async (req, res) => {
     const currentUserId = getCurrentUserId();
 
     const sorters = {
-      newest: (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      oldest: (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      newest: (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      oldest: (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       score_high: (a, b) => Number(b.score || 0) - Number(a.score || 0),
       score_low: (a, b) => Number(a.score || 0) - Number(b.score || 0),
       most_voted: (a, b) =>
@@ -980,7 +1005,8 @@ const server = http.createServer(async (req, res) => {
       user: {
         id: review.userId,
         displayName: review.userDisplayName || state.user.displayName,
-        profileImageUrl: review.userProfileImageUrl || state.user.profileImageUrl,
+        profileImageUrl:
+          review.userProfileImageUrl || state.user.profileImageUrl,
       },
       playTimeInSeconds: review.playTimeInSeconds || 0,
     }));
@@ -1002,7 +1028,9 @@ const server = http.createServer(async (req, res) => {
     );
 
     if (existing) {
-      existing.reviewHtml = String(body.reviewHtml || existing.reviewHtml || "");
+      existing.reviewHtml = String(
+        body.reviewHtml || existing.reviewHtml || ""
+      );
       existing.score = Number(body.score || existing.score || 0);
       existing.updatedAt = new Date().toISOString();
       saveState();
@@ -1056,7 +1084,8 @@ const server = http.createServer(async (req, res) => {
 
     if (previousVote === nextVote) {
       delete review.votes[currentUserId];
-      if (nextVote === "upvote") review.upvotes = Math.max(0, review.upvotes - 1);
+      if (nextVote === "upvote")
+        review.upvotes = Math.max(0, review.upvotes - 1);
       if (nextVote === "downvote")
         review.downvotes = Math.max(0, review.downvotes - 1);
     } else {
@@ -1097,7 +1126,10 @@ const server = http.createServer(async (req, res) => {
     const currentUserId = getCurrentUserId();
     const reviews = state.reviews
       .filter((review) => review.userId === userReviewsRoute.id)
-      .toSorted((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .toSorted(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
       .map((review) => {
         const game =
           state.catalogueGames.find(

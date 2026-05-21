@@ -12,10 +12,17 @@ const PUBLIC_BASE_URL =
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const STATE_PATH = path.join(DATA_DIR, "state.json");
 const ARTIFACTS_DIR = path.join(DATA_DIR, "artifacts");
+const UPLOADS_DIR = path.join(DATA_DIR, "uploads");
 
 const ensureDir = (target) => fs.mkdirSync(target, { recursive: true });
 ensureDir(DATA_DIR);
 ensureDir(ARTIFACTS_DIR);
+ensureDir(UPLOADS_DIR);
+
+const EMPTY_ZIP_BUFFER = Buffer.from(
+  "504b0506000000000000000000000000000000000000",
+  "hex"
+);
 
 const defaultState = {
   user: {
@@ -44,6 +51,8 @@ const defaultState = {
   friendRequests: [],
   blockedUserIds: [],
   notifications: [],
+  reviews: [],
+  catalogueGames: [],
   badges: [
     {
       name: "self_hosted",
@@ -75,6 +84,8 @@ const ensureStateShape = (rawState = {}) => {
     friendRequests: ensureArray(safe.friendRequests),
     blockedUserIds: ensureArray(safe.blockedUserIds),
     notifications: ensureArray(safe.notifications),
+    reviews: ensureArray(safe.reviews),
+    catalogueGames: ensureArray(safe.catalogueGames),
     badges: ensureArray(safe.badges, defaultState.badges),
   };
 };
@@ -218,6 +229,255 @@ const findOrCreateGame = (shop, objectId) => {
   return game;
 };
 
+const createDownloadSource = (url) => {
+  let name = "Download Source";
+  try {
+    const parsedUrl = new URL(url);
+    name = parsedUrl.hostname.replace(/^www\./, "") || name;
+  } catch {
+    // keep fallback name
+  }
+
+  const now = new Date().toISOString();
+
+  return {
+    id: crypto.randomUUID(),
+    name,
+    url,
+    status: "MATCHED",
+    downloadCount: 0,
+    fingerprint: crypto.createHash("sha1").update(url).digest("hex"),
+    createdAt: now,
+    updatedAt: now,
+  };
+};
+
+const upsertDownloadSourceByUrl = (sourceUrl) => {
+  const url = typeof sourceUrl === "string" ? sourceUrl.trim() : "";
+  if (!url) return null;
+
+  const existing = state.downloadSources.find((source) => source.url === url);
+  if (existing) return existing;
+
+  const created = createDownloadSource(url);
+  state.downloadSources.push(created);
+  return created;
+};
+
+const defaultCatalogueGames = [
+  {
+    id: "730",
+    objectId: "730",
+    shop: "steam",
+    title: "Counter-Strike 2",
+    genres: ["Action"],
+    tags: [19, 1685],
+    publishers: ["Valve"],
+    developers: ["Valve"],
+    releaseYear: 2023,
+    popularity: 1000,
+    hydraScore: 4.6,
+    reviewScore: 4.6,
+    releaseDate: "2023-09-27",
+    protondbSupportBadges: ["gold"],
+    deckCompatibilities: ["playable", "verified"],
+    description: "The next era of Counter-Strike begins.",
+  },
+  {
+    id: "570",
+    objectId: "570",
+    shop: "steam",
+    title: "Dota 2",
+    genres: ["Action", "Strategy"],
+    tags: [9, 492],
+    publishers: ["Valve"],
+    developers: ["Valve"],
+    releaseYear: 2013,
+    popularity: 950,
+    hydraScore: 4.4,
+    reviewScore: 4.4,
+    releaseDate: "2013-07-09",
+    protondbSupportBadges: ["gold"],
+    deckCompatibilities: ["playable", "verified"],
+    description:
+      "Every day, millions enter battle as one of over a hundred heroes.",
+  },
+  {
+    id: "1091500",
+    objectId: "1091500",
+    shop: "steam",
+    title: "Cyberpunk 2077",
+    genres: ["RPG", "Action"],
+    tags: [122, 492],
+    publishers: ["CD PROJEKT RED"],
+    developers: ["CD PROJEKT RED"],
+    releaseYear: 2020,
+    popularity: 900,
+    hydraScore: 4.5,
+    reviewScore: 4.2,
+    releaseDate: "2020-12-10",
+    protondbSupportBadges: ["platinum"],
+    deckCompatibilities: ["playable", "verified"],
+    description: "An open-world, action-adventure RPG set in Night City.",
+  },
+  {
+    id: "1245620",
+    objectId: "1245620",
+    shop: "steam",
+    title: "ELDEN RING",
+    genres: ["RPG", "Action"],
+    tags: [122, 21],
+    publishers: ["Bandai Namco Entertainment"],
+    developers: ["FromSoftware, Inc."],
+    releaseYear: 2022,
+    popularity: 870,
+    hydraScore: 4.8,
+    reviewScore: 4.8,
+    releaseDate: "2022-02-25",
+    protondbSupportBadges: ["gold"],
+    deckCompatibilities: ["playable", "verified"],
+    description: "Rise, Tarnished, and be guided by grace.",
+  },
+  {
+    id: "271590",
+    objectId: "271590",
+    shop: "steam",
+    title: "Grand Theft Auto V",
+    genres: ["Action", "Adventure"],
+    tags: [19, 492],
+    publishers: ["Rockstar Games"],
+    developers: ["Rockstar North"],
+    releaseYear: 2015,
+    popularity: 860,
+    hydraScore: 4.7,
+    reviewScore: 4.6,
+    releaseDate: "2015-04-14",
+    protondbSupportBadges: ["gold"],
+    deckCompatibilities: ["playable"],
+    description: "Explore Los Santos and Blaine County in ultimate detail.",
+  },
+  {
+    id: "1172470",
+    objectId: "1172470",
+    shop: "steam",
+    title: "Apex Legends",
+    genres: ["Action"],
+    tags: [19, 3859],
+    publishers: ["Electronic Arts"],
+    developers: ["Respawn Entertainment"],
+    releaseYear: 2020,
+    popularity: 780,
+    hydraScore: 4.2,
+    reviewScore: 4.1,
+    releaseDate: "2020-11-04",
+    protondbSupportBadges: ["silver"],
+    deckCompatibilities: ["playable"],
+    description:
+      "A free-to-play hero shooter where legendary characters battle.",
+  },
+  {
+    id: "1086940",
+    objectId: "1086940",
+    shop: "steam",
+    title: "Baldur's Gate 3",
+    genres: ["RPG", "Strategy"],
+    tags: [122, 9],
+    publishers: ["Larian Studios"],
+    developers: ["Larian Studios"],
+    releaseYear: 2023,
+    popularity: 760,
+    hydraScore: 4.9,
+    reviewScore: 4.9,
+    releaseDate: "2023-08-03",
+    protondbSupportBadges: ["platinum"],
+    deckCompatibilities: ["verified", "playable"],
+    description: "Gather your party and return to the Forgotten Realms.",
+  },
+  {
+    id: "1462040",
+    objectId: "1462040",
+    shop: "steam",
+    title: "FINAL FANTASY VII REBIRTH",
+    genres: ["RPG", "Action"],
+    tags: [122, 21],
+    publishers: ["Square Enix"],
+    developers: ["Square Enix"],
+    releaseYear: 2024,
+    popularity: 650,
+    hydraScore: 4.3,
+    reviewScore: 4.3,
+    releaseDate: "2024-02-29",
+    protondbSupportBadges: ["silver"],
+    deckCompatibilities: ["playable"],
+    description: "The unknown journey continues beyond Midgar.",
+  },
+];
+
+const ensureCatalogueGames = () => {
+  if (state.catalogueGames.length) return;
+
+  state.catalogueGames = defaultCatalogueGames.map((game) => {
+    const objectId = game.objectId;
+    const steamCdn = `https://cdn.akamai.steamstatic.com/steam/apps/${objectId}`;
+
+    return {
+      ...game,
+      iconUrl: `${steamCdn}/header.jpg`,
+      libraryHeroImageUrl: `${steamCdn}/library_hero.jpg`,
+      libraryImageUrl: `${steamCdn}/library_600x900.jpg`,
+      logoImageUrl: `${steamCdn}/logo.png`,
+      logoPosition: null,
+      coverImageUrl: `${steamCdn}/capsule_616x353.jpg`,
+    };
+  });
+
+  saveState();
+};
+
+const parseArrayQueryParam = (searchParams, key) => {
+  const values = [
+    ...searchParams.getAll(key),
+    ...searchParams.getAll(`${key}[]`),
+  ].flatMap((value) =>
+    value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+  );
+
+  return Array.from(new Set(values));
+};
+
+const getCurrentUserId = () => state.user?.id || "selfhost-user";
+
+const toCatalogueDownloadSourceNames = (game, selectedSourceIds) => {
+  const availableSources = state.downloadSources.filter((source) => {
+    const selected = !selectedSourceIds || selectedSourceIds.has(source.id);
+    return selected;
+  });
+
+  if (!availableSources.length) return [];
+  return availableSources.map((source) => source.name);
+};
+
+const toShopAsset = (game, selectedSourceIds) => ({
+  objectId: game.objectId,
+  shop: game.shop,
+  title: game.title,
+  iconUrl: game.iconUrl ?? null,
+  libraryHeroImageUrl: game.libraryHeroImageUrl ?? null,
+  libraryImageUrl: game.libraryImageUrl ?? null,
+  logoImageUrl: game.logoImageUrl ?? null,
+  logoPosition: game.logoPosition ?? null,
+  coverImageUrl: game.coverImageUrl ?? null,
+  downloadSources: toCatalogueDownloadSourceNames(game, selectedSourceIds),
+});
+
+const intersects = (left, right) => {
+  if (!Array.isArray(left) || !Array.isArray(right)) return false;
+  return left.some((item) => right.includes(item));
+};
+
 const authHtml = (pathname) => {
   const payload = Buffer.from(
     JSON.stringify({
@@ -304,38 +564,324 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, state.user);
   }
 
+  if (method === "PATCH" && pathname === "/profile") {
+    const body = getRequestData((await readBody(req)) || {});
+    state.user = {
+      ...state.user,
+      ...body,
+    };
+    saveState();
+    return sendJson(res, 200, state.user);
+  }
+
+  const presignedUrlRoute = routeMatch(pathname, "/presigned-urls/:type");
+  if (method === "POST" && presignedUrlRoute) {
+    const body = (await readBody(req)) || {};
+    const extension = String(body.imageExt || "bin").replace(/[^a-z0-9]/gi, "");
+    const uploadId = `${presignedUrlRoute.type}-${crypto.randomUUID()}.${extension || "bin"}`;
+    const uploadUrl = `${PUBLIC_BASE_URL}/uploads/${uploadId}`;
+    const payload = { presignedUrl: uploadUrl };
+    if (presignedUrlRoute.type === "profile-image") {
+      payload.profileImageUrl = uploadUrl;
+    }
+    if (presignedUrlRoute.type === "background-image") {
+      payload.backgroundImageUrl = uploadUrl;
+    }
+    return sendJson(res, 200, payload);
+  }
+
+  const uploadRoute = routeMatch(pathname, "/uploads/:id");
+  if (method === "PUT" && uploadRoute) {
+    const payload = await readBody(req);
+    if (!Buffer.isBuffer(payload)) {
+      return sendJson(res, 400, { error: "Expected binary body" });
+    }
+
+    fs.writeFileSync(path.join(UPLOADS_DIR, uploadRoute.id), payload);
+    return sendJson(res, 200, { ok: true });
+  }
+
+  if (method === "GET" && uploadRoute) {
+    const filePath = path.join(UPLOADS_DIR, uploadRoute.id);
+    if (!fs.existsSync(filePath)) {
+      return sendJson(res, 404, { error: "Upload not found" });
+    }
+
+    const file = fs.readFileSync(filePath);
+    res.writeHead(200, {
+      "Content-Type": "application/octet-stream",
+      "Content-Length": file.length,
+      "Access-Control-Allow-Origin": "*",
+    });
+    res.end(file);
+    return;
+  }
+
   if (method === "GET" && pathname === "/profile/download-sources") {
     return sendJson(res, 200, state.downloadSources);
   }
 
   if (method === "POST" && pathname === "/profile/download-sources") {
-    const body = (await readBody(req)) || {};
-    const existing = state.downloadSources.find(
-      (source) => source.shop === body.shop && source.objectId === body.objectId
-    );
+    const body = getRequestData((await readBody(req)) || {});
+    const urls = Array.isArray(body.urls)
+      ? body.urls
+      : body.url
+        ? [body.url]
+        : [];
+    const syncedSources = urls
+      .map((sourceUrl) => upsertDownloadSourceByUrl(sourceUrl))
+      .filter(Boolean);
 
-    if (existing) {
-      Object.assign(existing, body);
-    } else {
-      state.downloadSources.push(body);
+    saveState();
+    return sendJson(res, 200, syncedSources);
+  }
+
+  if (method === "DELETE" && pathname === "/profile/download-sources") {
+    const removeAll = searchParams.get("all") === "true";
+    const downloadSourceId = searchParams.get("downloadSourceId");
+    if (removeAll) {
+      state.downloadSources = [];
+    } else if (downloadSourceId) {
+      state.downloadSources = state.downloadSources.filter(
+        (source) => source.id !== downloadSourceId
+      );
     }
-
     saveState();
     return sendJson(res, 200, { ok: true });
   }
 
-  if (method === "DELETE" && pathname === "/profile/download-sources") {
-    const shop = searchParams.get("shop");
-    const objectId = searchParams.get("objectId");
-    state.downloadSources = state.downloadSources.filter(
-      (source) => !(source.shop === shop && source.objectId === objectId)
-    );
+  if (method === "POST" && pathname === "/download-sources") {
+    const body = getRequestData((await readBody(req)) || {});
+    const url = typeof body.url === "string" ? body.url.trim() : "";
+    if (!url) {
+      return sendJson(res, 400, { error: "URL is required" });
+    }
+
+    const existing = state.downloadSources.find((source) => source.url === url);
+    if (existing) {
+      return sendJson(res, 200, existing);
+    }
+
+    const created = createDownloadSource(url);
+    state.downloadSources.push(created);
     saveState();
-    return sendJson(res, 200, { ok: true });
+    return sendJson(res, 200, created);
+  }
+
+  if (method === "POST" && pathname === "/download-sources/sync") {
+    const body = getRequestData((await readBody(req)) || {});
+    const ids = Array.isArray(body.ids) ? body.ids : [];
+    const synced = ids.length
+      ? state.downloadSources.filter((source) => ids.includes(source.id))
+      : state.downloadSources;
+    return sendJson(res, 200, synced);
   }
 
   if (method === "POST" && pathname === "/download-sources/changes") {
     return sendJson(res, 200, []);
+  }
+
+  if (method === "GET" && pathname === "/catalogue/featured") {
+    ensureCatalogueGames();
+    const featured = state.catalogueGames.slice(0, 5).map((game) => ({
+      ...toShopAsset(game),
+      description: game.description ?? null,
+      uri: `/game/${game.shop}/${game.objectId}?title=${encodeURIComponent(game.title)}`,
+    }));
+    return sendJson(res, 200, featured);
+  }
+
+  if (method === "GET" && pathname === "/catalogue/search/suggestions") {
+    ensureCatalogueGames();
+    const query = String(searchParams.get("query") || "")
+      .trim()
+      .toLowerCase();
+    const limit = Math.max(1, Number(searchParams.get("limit") || 5));
+
+    if (!query) return sendJson(res, 200, []);
+
+    const suggestions = state.catalogueGames
+      .filter((game) => game.title.toLowerCase().includes(query))
+      .slice(0, limit)
+      .map((game) => ({
+        title: game.title,
+        objectId: game.objectId,
+        shop: game.shop,
+        iconUrl: game.iconUrl ?? null,
+      }));
+
+    return sendJson(res, 200, suggestions);
+  }
+
+  if (method === "POST" && pathname === "/catalogue/search") {
+    ensureCatalogueGames();
+    const body = getRequestData((await readBody(req)) || {});
+
+    const take = Math.max(1, Number(body.take ?? 30));
+    const skip = Math.max(0, Number(body.skip ?? 0));
+    const title = String(body.title || "")
+      .trim()
+      .toLowerCase();
+
+    const sourceIdsFromFingerprint = Array.isArray(
+      body.downloadSourceFingerprints
+    )
+      ? state.downloadSources
+          .filter((source) =>
+            body.downloadSourceFingerprints.includes(source.fingerprint)
+          )
+          .map((source) => source.id)
+      : [];
+
+    const sourceIdsFromBody = Array.isArray(body.downloadSourceIds)
+      ? body.downloadSourceIds
+      : [];
+    const selectedSourceIds = new Set([
+      ...sourceIdsFromFingerprint,
+      ...sourceIdsFromBody,
+    ]);
+    const selectedOrAllSourceIds = selectedSourceIds.size
+      ? selectedSourceIds
+      : new Set(state.downloadSources.map((source) => source.id));
+
+    let results = state.catalogueGames.filter((game) => {
+      if (title && !game.title.toLowerCase().includes(title)) return false;
+
+      if (Array.isArray(body.genres) && body.genres.length > 0) {
+        if (!intersects(game.genres, body.genres)) return false;
+      }
+
+      if (Array.isArray(body.publishers) && body.publishers.length > 0) {
+        if (!intersects(game.publishers, body.publishers)) return false;
+      }
+
+      if (Array.isArray(body.developers) && body.developers.length > 0) {
+        if (!intersects(game.developers, body.developers)) return false;
+      }
+
+      if (Array.isArray(body.tags) && body.tags.length > 0) {
+        if (!intersects(game.tags, body.tags)) return false;
+      }
+
+      if (
+        body.releaseYear &&
+        typeof body.releaseYear === "object" &&
+        game.releaseYear
+      ) {
+        if (
+          typeof body.releaseYear.gte === "number" &&
+          game.releaseYear < body.releaseYear.gte
+        ) {
+          return false;
+        }
+        if (
+          typeof body.releaseYear.lte === "number" &&
+          game.releaseYear > body.releaseYear.lte
+        ) {
+          return false;
+        }
+      }
+
+      if (
+        Array.isArray(body.protondbSupportBadges) &&
+        body.protondbSupportBadges.length > 0
+      ) {
+        if (
+          !intersects(game.protondbSupportBadges, body.protondbSupportBadges)
+        ) {
+          return false;
+        }
+      }
+
+      if (
+        Array.isArray(body.deckCompatibility) &&
+        body.deckCompatibility.length
+      ) {
+        if (!intersects(game.deckCompatibilities, body.deckCompatibility)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    const sortBy = body.sortBy || "popularity";
+    const sortOrder = body.sortOrder === "asc" ? "asc" : "desc";
+    const sortDirection = sortOrder === "asc" ? 1 : -1;
+
+    results = results.toSorted((a, b) => {
+      switch (sortBy) {
+        case "alphabetical":
+          return a.title.localeCompare(b.title) * sortDirection;
+        case "releaseDate":
+          return (
+            (new Date(a.releaseDate).getTime() -
+              new Date(b.releaseDate).getTime()) *
+            sortDirection
+          );
+        case "hydraScore":
+          return (a.hydraScore - b.hydraScore) * sortDirection;
+        case "reviewScore":
+          return (a.reviewScore - b.reviewScore) * sortDirection;
+        case "popularity":
+        default:
+          return (a.popularity - b.popularity) * sortDirection;
+      }
+    });
+
+    const paged = results.slice(skip, skip + take).map((game) => ({
+      id: game.id,
+      objectId: game.objectId,
+      title: game.title,
+      shop: game.shop,
+      genres: game.genres,
+      releaseYear: game.releaseYear,
+      protondbSupportBadges: game.protondbSupportBadges,
+      deckCompatibilities: game.deckCompatibilities,
+      deckCompatibility: game.deckCompatibilities[0] ?? null,
+      libraryImageUrl: game.libraryImageUrl ?? null,
+      downloadSources: toCatalogueDownloadSourceNames(
+        game,
+        selectedOrAllSourceIds
+      ),
+    }));
+
+    return sendJson(res, 200, {
+      edges: paged,
+      count: results.length,
+    });
+  }
+
+  const catalogueCategoryRoute = routeMatch(pathname, "/catalogue/:category");
+  if (method === "GET" && catalogueCategoryRoute) {
+    ensureCatalogueGames();
+
+    const take = Math.max(1, Number(searchParams.get("take") || 12));
+    const skip = Math.max(0, Number(searchParams.get("skip") || 0));
+    const downloadSourceIds = parseArrayQueryParam(
+      searchParams,
+      "downloadSourceIds"
+    );
+    const selectedSourceIds = downloadSourceIds.length
+      ? new Set(downloadSourceIds)
+      : null;
+
+    const categorySortKey = {
+      hot: "popularity",
+      weekly: "hydraScore",
+      achievements: "reviewScore",
+    }[catalogueCategoryRoute.category];
+
+    if (!categorySortKey) {
+      return sendJson(res, 404, { error: "Unknown catalogue category" });
+    }
+
+    const games = state.catalogueGames
+      .toSorted((a, b) => b[categorySortKey] - a[categorySortKey])
+      .slice(skip, skip + take)
+      .map((game) => toShopAsset(game, selectedSourceIds));
+
+    return sendJson(res, 200, games);
   }
 
   const gameDownloadSourcesRoute = routeMatch(
@@ -352,6 +898,276 @@ const server = http.createServer(async (req, res) => {
   );
   if (method === "POST" && gameDownloadRoute) {
     return sendJson(res, 200, { ok: true });
+  }
+
+  const gameAssetsRoute = routeMatch(pathname, "/games/:shop/:objectId/assets");
+  if (method === "GET" && gameAssetsRoute) {
+    ensureCatalogueGames();
+    const game = state.catalogueGames.find(
+      (entry) =>
+        entry.shop === gameAssetsRoute.shop &&
+        entry.objectId === gameAssetsRoute.objectId
+    );
+
+    if (!game) return sendJson(res, 200, null);
+    return sendJson(res, 200, toShopAsset(game));
+  }
+
+  const gameStatsRoute = routeMatch(pathname, "/games/:shop/:objectId/stats");
+  if (method === "GET" && gameStatsRoute) {
+    const reviews = state.reviews.filter(
+      (review) =>
+        review.shop === gameStatsRoute.shop &&
+        review.objectId === gameStatsRoute.objectId
+    );
+    const averageScore = reviews.length
+      ? reviews.reduce((acc, review) => acc + Number(review.score || 0), 0) /
+        reviews.length
+      : null;
+
+    const downloadCount = state.artifacts
+      .filter(
+        (artifact) =>
+          artifact.shop === gameStatsRoute.shop &&
+          artifact.objectId === gameStatsRoute.objectId
+      )
+      .reduce((acc, artifact) => acc + Number(artifact.downloadCount || 0), 0);
+
+    return sendJson(res, 200, {
+      downloadCount,
+      playerCount: 0,
+      averageScore,
+      reviewCount: reviews.length,
+    });
+  }
+
+  const gameReviewCheckRoute = routeMatch(
+    pathname,
+    "/games/:shop/:objectId/reviews/check"
+  );
+  if (method === "GET" && gameReviewCheckRoute) {
+    const currentUserId = getCurrentUserId();
+    const hasReviewed = state.reviews.some(
+      (review) =>
+        review.shop === gameReviewCheckRoute.shop &&
+        review.objectId === gameReviewCheckRoute.objectId &&
+        review.userId === currentUserId
+    );
+
+    return sendJson(res, 200, { hasReviewed });
+  }
+
+  const gameReviewsRoute = routeMatch(
+    pathname,
+    "/games/:shop/:objectId/reviews"
+  );
+  if (gameReviewsRoute && method === "GET") {
+    ensureCatalogueGames();
+    const take = Math.max(1, Number(searchParams.get("take") || 20));
+    const skip = Math.max(0, Number(searchParams.get("skip") || 0));
+    const sortBy = searchParams.get("sortBy") || "newest";
+    const currentUserId = getCurrentUserId();
+
+    const sorters = {
+      newest: (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      oldest: (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      score_high: (a, b) => Number(b.score || 0) - Number(a.score || 0),
+      score_low: (a, b) => Number(a.score || 0) - Number(b.score || 0),
+      most_voted: (a, b) =>
+        Number(b.upvotes || 0) +
+        Number(b.downvotes || 0) -
+        (Number(a.upvotes || 0) + Number(a.downvotes || 0)),
+    };
+
+    const reviews = state.reviews
+      .filter(
+        (review) =>
+          review.shop === gameReviewsRoute.shop &&
+          review.objectId === gameReviewsRoute.objectId
+      )
+      .toSorted(sorters[sortBy] || sorters.newest);
+
+    const serialized = reviews.slice(skip, skip + take).map((review) => ({
+      id: review.id,
+      reviewHtml: review.reviewHtml,
+      score: review.score,
+      createdAt: review.createdAt,
+      updatedAt: review.updatedAt,
+      upvotes: review.upvotes,
+      downvotes: review.downvotes,
+      isBlocked: false,
+      hasUpvoted: review.votes?.[currentUserId] === "upvote",
+      hasDownvoted: review.votes?.[currentUserId] === "downvote",
+      translations: review.translations || {},
+      detectedLanguage: review.detectedLanguage || "en",
+      user: {
+        id: review.userId,
+        displayName: review.userDisplayName || state.user.displayName,
+        profileImageUrl:
+          review.userProfileImageUrl || state.user.profileImageUrl,
+      },
+      playTimeInSeconds: review.playTimeInSeconds || 0,
+    }));
+
+    return sendJson(res, 200, {
+      reviews: serialized,
+      totalCount: reviews.length,
+    });
+  }
+
+  if (gameReviewsRoute && method === "POST") {
+    const currentUserId = getCurrentUserId();
+    const body = getRequestData((await readBody(req)) || {});
+    const existing = state.reviews.find(
+      (review) =>
+        review.shop === gameReviewsRoute.shop &&
+        review.objectId === gameReviewsRoute.objectId &&
+        review.userId === currentUserId
+    );
+
+    if (existing) {
+      existing.reviewHtml = String(
+        body.reviewHtml || existing.reviewHtml || ""
+      );
+      existing.score = Number(body.score || existing.score || 0);
+      existing.updatedAt = new Date().toISOString();
+      saveState();
+      return sendJson(res, 200, existing);
+    }
+
+    const created = {
+      id: crypto.randomUUID(),
+      shop: gameReviewsRoute.shop,
+      objectId: gameReviewsRoute.objectId,
+      userId: currentUserId,
+      userDisplayName: state.user.displayName,
+      userProfileImageUrl: state.user.profileImageUrl,
+      reviewHtml: String(body.reviewHtml || ""),
+      score: Number(body.score || 0),
+      upvotes: 0,
+      downvotes: 0,
+      votes: {},
+      translations: {},
+      detectedLanguage: "en",
+      playTimeInSeconds: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    state.reviews.push(created);
+    saveState();
+    return sendJson(res, 200, created);
+  }
+
+  const gameReviewActionRoute = routeMatch(
+    pathname,
+    "/games/:shop/:objectId/reviews/:reviewId/:action"
+  );
+  if (gameReviewActionRoute && method === "PUT") {
+    const currentUserId = getCurrentUserId();
+    const review = state.reviews.find(
+      (candidate) => candidate.id === gameReviewActionRoute.reviewId
+    );
+    if (!review) return sendJson(res, 404, { error: "Review not found" });
+
+    review.votes = review.votes || {};
+    const previousVote = review.votes[currentUserId];
+    const nextVote =
+      gameReviewActionRoute.action === "upvote"
+        ? "upvote"
+        : gameReviewActionRoute.action === "downvote"
+          ? "downvote"
+          : null;
+
+    if (!nextVote) return sendJson(res, 400, { error: "Invalid vote action" });
+
+    if (previousVote === nextVote) {
+      delete review.votes[currentUserId];
+      if (nextVote === "upvote")
+        review.upvotes = Math.max(0, review.upvotes - 1);
+      if (nextVote === "downvote")
+        review.downvotes = Math.max(0, review.downvotes - 1);
+    } else {
+      review.votes[currentUserId] = nextVote;
+      if (nextVote === "upvote") {
+        review.upvotes += 1;
+        if (previousVote === "downvote") {
+          review.downvotes = Math.max(0, review.downvotes - 1);
+        }
+      } else {
+        review.downvotes += 1;
+        if (previousVote === "upvote") {
+          review.upvotes = Math.max(0, review.upvotes - 1);
+        }
+      }
+    }
+
+    review.updatedAt = new Date().toISOString();
+    saveState();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  const gameReviewRoute = routeMatch(
+    pathname,
+    "/games/:shop/:objectId/reviews/:reviewId"
+  );
+  if (gameReviewRoute && method === "DELETE") {
+    state.reviews = state.reviews.filter(
+      (review) => review.id !== gameReviewRoute.reviewId
+    );
+    saveState();
+    return sendJson(res, 200, { ok: true });
+  }
+
+  const userReviewsRoute = routeMatch(pathname, "/users/:id/reviews");
+  if (userReviewsRoute && method === "GET") {
+    ensureCatalogueGames();
+    const currentUserId = getCurrentUserId();
+    const reviews = state.reviews
+      .filter((review) => review.userId === userReviewsRoute.id)
+      .toSorted(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+      .map((review) => {
+        const game =
+          state.catalogueGames.find(
+            (entry) =>
+              entry.shop === review.shop && entry.objectId === review.objectId
+          ) ||
+          state.games.find(
+            (entry) =>
+              entry.shop === review.shop && entry.objectId === review.objectId
+          );
+
+        return {
+          id: review.id,
+          reviewHtml: review.reviewHtml,
+          score: review.score,
+          playTimeInSeconds: review.playTimeInSeconds || 0,
+          upvotes: review.upvotes,
+          downvotes: review.downvotes,
+          hasUpvoted: review.votes?.[currentUserId] === "upvote",
+          hasDownvoted: review.votes?.[currentUserId] === "downvote",
+          createdAt: review.createdAt,
+          updatedAt: review.updatedAt,
+          user: { id: review.userId },
+          game: {
+            title: game?.title || `${review.shop}:${review.objectId}`,
+            iconUrl: game?.iconUrl || "",
+            objectId: review.objectId,
+            shop: review.shop,
+          },
+          translations: review.translations || {},
+          detectedLanguage: review.detectedLanguage || "en",
+        };
+      });
+
+    return sendJson(res, 200, {
+      totalCount: reviews.length,
+      reviews,
+    });
   }
 
   if (method === "GET" && pathname === "/profile/games") {
@@ -876,6 +1692,23 @@ const server = http.createServer(async (req, res) => {
 
   if (method === "POST" && pathname === "/hosters/unlock") {
     return sendJson(res, 200, { url: "" });
+  }
+
+  if (method === "GET" && pathname === "/decky/release") {
+    return sendJson(res, 200, {
+      version: "0.0.1-selfhost",
+      downloadUrl: `${PUBLIC_BASE_URL}/decky/Hydra.zip`,
+    });
+  }
+
+  if (method === "GET" && pathname === "/decky/Hydra.zip") {
+    res.writeHead(200, {
+      "Content-Type": "application/zip",
+      "Content-Length": EMPTY_ZIP_BUFFER.length,
+      "Access-Control-Allow-Origin": "*",
+    });
+    res.end(EMPTY_ZIP_BUFFER);
+    return;
   }
 
   return sendJson(res, 404, { error: `No route for ${method} ${pathname}` });

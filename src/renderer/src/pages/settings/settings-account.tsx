@@ -328,10 +328,10 @@ export function SettingsAccount() {
                     label={t("profile_visibility")}
                     value={field.value}
                     onChange={handleChange}
-                    options={visibilityOptions.map((visiblity) => ({
-                      key: visiblity.value,
-                      value: visiblity.value,
-                      label: visiblity.label,
+                    options={visibilityOptions.map((visibility) => ({
+                      key: visibility.value,
+                      value: visibility.value,
+                      label: visibility.label,
                     }))}
                     disabled={isSubmitting}
                   />

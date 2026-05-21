@@ -44,6 +44,10 @@ After installing dependencies, `postinstall` now builds the Rust native addon au
 
 Packaging scripts (`yarn build:win`, `yarn build:mac`, `yarn build:linux`, `yarn build:unpack`) now run `yarn build:python-rpc` automatically.
 
+### One-click Windows installer build
+
+To create a Windows installer from GitHub, open **Actions** → **Build Windows Installer** → **Run workflow**. When the workflow finishes, download the `Hydra-windows-installer` artifact to get the generated setup `.exe`, portable `.exe`, and updater metadata files.
+
 ## Contributors
 
 <a href="https://github.com/hydralauncher/hydra/graphs/contributors">

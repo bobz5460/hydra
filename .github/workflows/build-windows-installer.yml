@@ -1,0 +1,67 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-installer:
+    runs-on: windows-2022
+
+    env:
+      MAIN_VITE_API_URL: ${{ vars.MAIN_VITE_API_URL }}
+      MAIN_VITE_AUTH_URL: ${{ vars.MAIN_VITE_AUTH_URL }}
+      MAIN_VITE_CHECKOUT_URL: ${{ vars.MAIN_VITE_CHECKOUT_URL }}
+      MAIN_VITE_WS_URL: ${{ vars.MAIN_VITE_WS_URL }}
+      MAIN_VITE_NIMBUS_API_URL: ${{ vars.MAIN_VITE_NIMBUS_API_URL }}
+      RENDERER_VITE_EXTERNAL_RESOURCES_URL: ${{ vars.EXTERNAL_RESOURCES_URL }}
+      MAIN_VITE_EXTERNAL_RESOURCES_URL: ${{ vars.EXTERNAL_RESOURCES_URL }}
+      RENDERER_VITE_SENTRY_DSN: ${{ vars.SENTRY_DSN }}
+      RENDERER_VITE_REAL_DEBRID_REFERRAL_ID: ${{ vars.RENDERER_VITE_REAL_DEBRID_REFERRAL_ID }}
+      RENDERER_VITE_TORBOX_REFERRAL_CODE: ${{ vars.RENDERER_VITE_TORBOX_REFERRAL_CODE }}
+      MAIN_VITE_LAUNCHER_SUBDOMAIN: ${{ vars.MAIN_VITE_LAUNCHER_SUBDOMAIN }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.21.0
+          cache: "yarn"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Install dependencies
+        run: yarn --frozen-lockfile
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build Windows installer
+        run: yarn build:win -- --publish never
+
+      - name: Upload Windows installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hydra-windows-installer
+          if-no-files-found: error
+          path: |
+            dist/*-setup.exe
+            dist/*-portable.exe
+            dist/*.yml
+            dist/*.blockmap

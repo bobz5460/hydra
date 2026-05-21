@@ -495,8 +495,9 @@ contextBridge.exposeInMainWorld("electron", {
   openExternal: (src: string) => ipcRenderer.invoke("openExternal", src),
   openCheckout: () => ipcRenderer.invoke("openCheckout"),
   getCloudServerConfig: () => ipcRenderer.invoke("getCloudServerConfig"),
-  checkCloudServerConnectivity: (baseUrl?: string | null) =>
-    ipcRenderer.invoke("checkCloudServerConnectivity", baseUrl),
+  checkCloudServerConnectivity: (
+    preferences?: Partial<UserPreferences> | null
+  ) => ipcRenderer.invoke("checkCloudServerConnectivity", preferences),
   showOpenDialog: (options: Electron.OpenDialogOptions) =>
     ipcRenderer.invoke("showOpenDialog", options),
   showItemInFolder: (path: string) =>

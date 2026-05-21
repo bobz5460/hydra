@@ -120,6 +120,12 @@ export type AchievementCustomNotificationPosition =
 export interface UserPreferences {
   downloadsPath?: string | null;
   cloudServerUrl?: string | null;
+  cloudServerApiUrl?: string | null;
+  cloudServerAuthUrl?: string | null;
+  cloudServerCheckoutUrl?: string | null;
+  cloudServerNimbusApiUrl?: string | null;
+  cloudServerWsUrl?: string | null;
+  selfHostedCloudEnabled?: boolean;
   ggDealsApiKey?: string | null;
   language?: string;
   realDebridApiToken?: string | null;

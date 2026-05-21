@@ -7,6 +7,16 @@ import { patchUserProfile } from "../profile/update-profile";
 import { DownloadManager, HydraApi, WSClient } from "@main/services";
 import { SelfHostConfig } from "@main/self-host-config";
 
+const cloudServerPreferenceKeys: Array<keyof UserPreferences> = [
+  "selfHostedCloudEnabled",
+  "cloudServerUrl",
+  "cloudServerApiUrl",
+  "cloudServerAuthUrl",
+  "cloudServerCheckoutUrl",
+  "cloudServerNimbusApiUrl",
+  "cloudServerWsUrl",
+];
+
 const updateUserPreferences = async (
   _event: Electron.IpcMainInvokeEvent,
   preferences: Partial<UserPreferences>
@@ -44,11 +54,21 @@ const updateUserPreferences = async (
     );
   }
 
-  if (Object.hasOwn(preferences, "cloudServerUrl")) {
+  if (
+    cloudServerPreferenceKeys.some((key) => Object.hasOwn(preferences, key))
+  ) {
+    const previousCloudConfig = SelfHostConfig.getConfig();
+    const nextCloudConfig = SelfHostConfig.resolve(nextUserPreferences);
+
     SelfHostConfig.applyPreferences(nextUserPreferences);
-    HydraApi.reconfigure();
-    WSClient.close();
-    HydraApi.resetSession();
+
+    if (
+      JSON.stringify(previousCloudConfig) !== JSON.stringify(nextCloudConfig)
+    ) {
+      HydraApi.reconfigure();
+      WSClient.close();
+      HydraApi.resetSession();
+    }
   }
 };
 

@@ -62,7 +62,9 @@ const updateUserPreferences = async (
 
     SelfHostConfig.applyPreferences(nextUserPreferences);
 
-    if (JSON.stringify(previousCloudConfig) !== JSON.stringify(nextCloudConfig)) {
+    if (
+      JSON.stringify(previousCloudConfig) !== JSON.stringify(nextCloudConfig)
+    ) {
       HydraApi.reconfigure();
       WSClient.close();
       HydraApi.resetSession();

@@ -247,6 +247,19 @@ export function SettingsAccount() {
   ]);
 
   const getHydraCloudSectionContent = () => {
+    if (!userDetails) {
+      return {
+        description: (
+          <small>
+            {t("sign_in_to_continue", {
+              defaultValue: "Sign in to manage your Hydra Cloud account.",
+            })}
+          </small>
+        ),
+        callToAction: t("sign_in"),
+      };
+    }
+
     const hasSubscribedBefore = Boolean(userDetails?.subscription?.expiresAt);
     const isRenewalActive = userDetails?.subscription?.status === "active";
 
@@ -294,68 +307,72 @@ export function SettingsAccount() {
     };
   };
 
-  if (!userDetails) return null;
-
   return (
     <form className="settings-account__form" onSubmit={handleSubmit(onSubmit)}>
-      <Controller
-        control={control}
-        name="profileVisibility"
-        render={({ field }) => {
-          const handleChange = (
-            event: React.ChangeEvent<HTMLSelectElement>
-          ) => {
-            field.onChange(event);
-            handleSubmit(onSubmit)();
-          };
+      {userDetails && (
+        <>
+          <Controller
+            control={control}
+            name="profileVisibility"
+            render={({ field }) => {
+              const handleChange = (
+                event: React.ChangeEvent<HTMLSelectElement>
+              ) => {
+                field.onChange(event);
+                handleSubmit(onSubmit)();
+              };
 
-          return (
-            <section className="settings-account__section">
-              <SelectField
-                label={t("profile_visibility")}
-                value={field.value}
-                onChange={handleChange}
-                options={visibilityOptions.map((visiblity) => ({
-                  key: visiblity.value,
-                  value: visiblity.value,
-                  label: visiblity.label,
-                }))}
-                disabled={isSubmitting}
-              />
+              return (
+                <section className="settings-account__section">
+                  <SelectField
+                    label={t("profile_visibility")}
+                    value={field.value}
+                    onChange={handleChange}
+                    options={visibilityOptions.map((visiblity) => ({
+                      key: visiblity.value,
+                      value: visiblity.value,
+                      label: visiblity.label,
+                    }))}
+                    disabled={isSubmitting}
+                  />
 
-              <small>{t("profile_visibility_description")}</small>
-            </section>
-          );
-        }}
-      />
+                  <small>{t("profile_visibility_description")}</small>
+                </section>
+              );
+            }}
+          />
 
-      <section className="settings-account__section">
-        <h4>{t("current_username")}</h4>
-        <p>{userDetails?.username}</p>
+          <section className="settings-account__section">
+            <h4>{t("current_username")}</h4>
+            <p>{userDetails.username}</p>
 
-        <h4>{t("current_email")}</h4>
-        <p>{userDetails?.email ?? t("no_email_account")}</p>
+            <h4>{t("current_email")}</h4>
+            <p>{userDetails.email ?? t("no_email_account")}</p>
 
-        <div className="settings-account__actions">
-          <Button
-            theme="outline"
-            onClick={() => window.electron.openAuthWindow(AuthPage.UpdateEmail)}
-          >
-            <MailIcon />
-            {t("update_email")}
-          </Button>
+            <div className="settings-account__actions">
+              <Button
+                theme="outline"
+                onClick={() =>
+                  window.electron.openAuthWindow(AuthPage.UpdateEmail)
+                }
+              >
+                <MailIcon />
+                {t("update_email")}
+              </Button>
 
-          <Button
-            theme="outline"
-            onClick={() =>
-              window.electron.openAuthWindow(AuthPage.UpdatePassword)
-            }
-          >
-            <KeyIcon />
-            {t("update_password")}
-          </Button>
-        </div>
-      </section>
+              <Button
+                theme="outline"
+                onClick={() =>
+                  window.electron.openAuthWindow(AuthPage.UpdatePassword)
+                }
+              >
+                <KeyIcon />
+                {t("update_password")}
+              </Button>
+            </div>
+          </section>
+        </>
+      )}
 
       <section className="settings-account__section">
         <h3>{t("hydra_cloud")}</h3>
@@ -448,47 +465,56 @@ export function SettingsAccount() {
         <Button
           className="settings-account__subscription-button"
           theme="outline"
-          onClick={() => window.electron.openCheckout()}
+          onClick={() => {
+            if (!userDetails) {
+              window.electron.openAuthWindow(AuthPage.SignIn);
+              return;
+            }
+
+            window.electron.openCheckout();
+          }}
         >
           <CloudIcon />
           {getHydraCloudSectionContent().callToAction}
         </Button>
       </section>
 
-      <section className="settings-account__section">
-        <h3>{t("blocked_users")}</h3>
+      {userDetails && (
+        <section className="settings-account__section">
+          <h3>{t("blocked_users")}</h3>
 
-        {blockedUsers.length > 0 ? (
-          <ul className="settings-account__blocked-users">
-            {blockedUsers.map((user) => {
-              return (
-                <li key={user.id} className="settings-account__blocked-user">
-                  <div className="settings-account__user-info">
-                    <Avatar
-                      className="settings-account__user-avatar"
-                      size={32}
-                      src={user.profileImageUrl}
-                      alt={user.displayName}
-                    />
-                    <span>{user.displayName}</span>
-                  </div>
+          {blockedUsers.length > 0 ? (
+            <ul className="settings-account__blocked-users">
+              {blockedUsers.map((user) => {
+                return (
+                  <li key={user.id} className="settings-account__blocked-user">
+                    <div className="settings-account__user-info">
+                      <Avatar
+                        className="settings-account__user-avatar"
+                        size={32}
+                        src={user.profileImageUrl}
+                        alt={user.displayName}
+                      />
+                      <span>{user.displayName}</span>
+                    </div>
 
-                  <button
-                    type="button"
-                    className="settings-account__unblock-button"
-                    onClick={() => handleUnblockClick(user.id)}
-                    disabled={isUnblocking}
-                  >
-                    <XCircleFillIcon />
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <small>{t("no_users_blocked")}</small>
-        )}
-      </section>
+                    <button
+                      type="button"
+                      className="settings-account__unblock-button"
+                      onClick={() => handleUnblockClick(user.id)}
+                      disabled={isUnblocking}
+                    >
+                      <XCircleFillIcon />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <small>{t("no_users_blocked")}</small>
+          )}
+        </section>
+      )}
     </form>
   );
 }

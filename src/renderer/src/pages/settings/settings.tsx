@@ -23,6 +23,11 @@ import { SettingsContextContentGameplay } from "./settings-context-content-gamep
 import { SettingsContextIntegrations } from "./settings-context-integrations";
 import { SettingsContextCompatibility } from "./settings-context-compatibility";
 
+const isSelfHostedCloudEnabled = (() => {
+  const value = import.meta.env.RENDERER_VITE_SELF_HOST_CLOUD?.toLowerCase();
+  return value === "true" || value === "1" || value === "yes" || value === "on";
+})();
+
 export default function Settings() {
   const { t } = useTranslation("settings");
 
@@ -60,7 +65,7 @@ export default function Settings() {
         label: t("compatibility"),
         icon: <Wrench size={16} />,
       },
-      ...(userDetails
+      ...(userDetails || isSelfHostedCloudEnabled
         ? [
             {
               id: "account_privacy" as const,

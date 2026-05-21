@@ -7,6 +7,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   build-windows-installer:
     runs-on: windows-2022
@@ -23,7 +26,6 @@ jobs:
       RENDERER_VITE_REAL_DEBRID_REFERRAL_ID: ${{ vars.RENDERER_VITE_REAL_DEBRID_REFERRAL_ID }}
       RENDERER_VITE_TORBOX_REFERRAL_CODE: ${{ vars.RENDERER_VITE_TORBOX_REFERRAL_CODE }}
       MAIN_VITE_LAUNCHER_SUBDOMAIN: ${{ vars.MAIN_VITE_LAUNCHER_SUBDOMAIN }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
     steps:
@@ -51,7 +53,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Build Windows installer
-        run: yarn build:win
+        run: yarn build:win -- --publish never
 
       - name: Upload Windows installer artifacts
         uses: actions/upload-artifact@v4

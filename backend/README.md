@@ -9,7 +9,21 @@ It provides:
 - artifact upload/download storage on local disk
 - starter coverage for friend requests, notifications, badges, profile stats/library, and achievements reset routes used by the launcher UI
 
-## 1) Run locally
+## 1) Ubuntu one-click setup + run
+
+```bash
+cd backend
+chmod +x ./install-ubuntu-selfhost.sh ./run-ubuntu-selfhost.sh
+./install-ubuntu-selfhost.sh
+./run-ubuntu-selfhost.sh
+```
+
+The installer script:
+- installs Node.js 20 when needed
+- installs backend dependencies
+- creates `./.env` with default server values if it does not exist
+
+## 2) Run locally
 
 ```bash
 cd backend
@@ -26,14 +40,14 @@ export PUBLIC_BASE_URL=http://localhost:4000
 npm start
 ```
 
-## 2) Run with Docker Compose
+## 3) Run with Docker Compose
 
 ```bash
 cd backend
 docker compose up -d --build
 ```
 
-## 3) Point Hydra Launcher to this backend
+## 4) Point Hydra Launcher to this backend
 
 Set these values in the launcher environment.
 

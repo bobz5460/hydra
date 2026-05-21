@@ -27,6 +27,11 @@ jobs:
       RENDERER_VITE_TORBOX_REFERRAL_CODE: ${{ vars.RENDERER_VITE_TORBOX_REFERRAL_CODE }}
       MAIN_VITE_LAUNCHER_SUBDOMAIN: ${{ vars.MAIN_VITE_LAUNCHER_SUBDOMAIN }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      MAIN_VITE_SELF_HOST_CLOUD: true
+      MAIN_VITE_SELF_HOST_BASE_URL: "https://animated-winner-xg4g4vjqg9p296g6-4000.app.github.dev/"
+      MAIN_VITE_SELF_HOST_WS_URL: "https://animated-winner-xg4g4vjqg9p296g6-4001.app.github.dev/"
+      MAIN_VITE_SELF_HOST_WS_PORT: 443
+      RENDERER_VITE_SELF_HOST_CLOUD:  true
 
     steps:
       - name: Check out Git repository

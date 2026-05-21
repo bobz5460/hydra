@@ -57,13 +57,32 @@ const requestCheck = async (
   }
 };
 
+const requestApiCheck = async (apiUrl: string) => {
+  const healthUrl = apiUrl ? `${apiUrl}/health` : "";
+  const healthCheck = await requestCheck("api", healthUrl);
+
+  if (healthCheck.ok || !apiUrl) {
+    return healthCheck;
+  }
+
+  const rootCheck = await requestCheck("api", apiUrl);
+  if (rootCheck.ok) {
+    return {
+      ...rootCheck,
+      detail: `${rootCheck.detail} (root endpoint)`,
+    };
+  }
+
+  return healthCheck;
+};
+
 const checkCloudServerConnectivity = async (
   _event: Electron.IpcMainInvokeEvent,
   baseUrl?: string | null
 ): Promise<CloudServerConnectivityResult> => {
   const config = SelfHostConfig.resolve(baseUrl);
   const checks = await Promise.all([
-    requestCheck("api", config.apiUrl ? `${config.apiUrl}/health` : ""),
+    requestApiCheck(config.apiUrl),
     requestCheck("auth", config.authUrl),
     requestCheck("checkout", config.checkoutUrl),
   ]);

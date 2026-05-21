@@ -187,9 +187,9 @@ export function SettingsAccount() {
           t("cloud_server_saved_with_issues", {
             defaultValue: "Cloud server saved with connectivity issues",
           }),
-          t("cloud_server_saved_description", {
+          t("cloud_server_saved_with_issues_description", {
             defaultValue:
-              "Hydra is now using the selected cloud server. Sign in again if needed.",
+              "Hydra saved the selected cloud server, but one or more connectivity checks failed.",
           })
         );
       }

@@ -1,7 +1,18 @@
-import { Avatar, Button, SelectField, TextField } from "@renderer/components";
+import {
+  Avatar,
+  Button,
+  CheckboxField,
+  SelectField,
+  TextField,
+} from "@renderer/components";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { useDate, useToast, useUserDetails } from "@renderer/hooks";
+import {
+  useAppSelector,
+  useDate,
+  useToast,
+  useUserDetails,
+} from "@renderer/hooks";
 import { useCallback, useContext, useEffect, useState } from "react";
 import {
   CloudIcon,
@@ -11,16 +22,37 @@ import {
 } from "@primer/octicons-react";
 import { settingsContext } from "@renderer/context";
 import { AuthPage } from "@shared";
+import type { UserPreferences } from "@types";
 import "./settings-account.scss";
 
 interface FormValues {
   profileVisibility: "PUBLIC" | "FRIENDS" | "PRIVATE";
 }
 
-const isSelfHostedCloudEnabled = (() => {
+interface CloudServerFormValues {
+  enabled: boolean;
+  baseUrl: string;
+  apiUrl: string;
+  authUrl: string;
+  checkoutUrl: string;
+  nimbusApiUrl: string;
+  wsUrl: string;
+}
+
+const isSelfHostedCloudEnabledByDefault = (() => {
   const value = import.meta.env.RENDERER_VITE_SELF_HOST_CLOUD?.toLowerCase();
   return value === "true" || value === "1" || value === "yes" || value === "on";
 })();
+
+const emptyCloudServerFormValues: CloudServerFormValues = {
+  enabled: false,
+  baseUrl: "",
+  apiUrl: "",
+  authUrl: "",
+  checkoutUrl: "",
+  nimbusApiUrl: "",
+  wsUrl: "",
+};
 
 const normalizeCloudServerUrl = (value: string) => {
   const trimmed = value.trim();
@@ -37,12 +69,50 @@ const isValidCloudServerUrl = (value: string) => {
   }
 };
 
+const normalizeCloudServerFormValues = (
+  value: CloudServerFormValues
+): CloudServerFormValues => ({
+  enabled: value.enabled,
+  baseUrl: normalizeCloudServerUrl(value.baseUrl),
+  apiUrl: normalizeCloudServerUrl(value.apiUrl),
+  authUrl: normalizeCloudServerUrl(value.authUrl),
+  checkoutUrl: normalizeCloudServerUrl(value.checkoutUrl),
+  nimbusApiUrl: normalizeCloudServerUrl(value.nimbusApiUrl),
+  wsUrl: normalizeCloudServerUrl(value.wsUrl),
+});
+
+const hasCloudServerConfiguration = (value: CloudServerFormValues) => {
+  return [
+    value.baseUrl,
+    value.apiUrl,
+    value.authUrl,
+    value.checkoutUrl,
+    value.nimbusApiUrl,
+    value.wsUrl,
+  ].some(Boolean);
+};
+
+const toCloudServerPreferences = (
+  value: CloudServerFormValues
+): Partial<UserPreferences> => ({
+  selfHostedCloudEnabled: value.enabled,
+  cloudServerUrl: value.baseUrl || null,
+  cloudServerApiUrl: value.apiUrl || null,
+  cloudServerAuthUrl: value.authUrl || null,
+  cloudServerCheckoutUrl: value.checkoutUrl || null,
+  cloudServerNimbusApiUrl: value.nimbusApiUrl || null,
+  cloudServerWsUrl: value.wsUrl || null,
+});
+
 export function SettingsAccount() {
   const { t } = useTranslation("settings");
 
   const [isUnblocking, setIsUnblocking] = useState(false);
-  const [cloudServerUrl, setCloudServerUrl] = useState("");
-  const [savedCloudServerUrl, setSavedCloudServerUrl] = useState("");
+  const [cloudServerForm, setCloudServerForm] = useState<CloudServerFormValues>(
+    emptyCloudServerFormValues
+  );
+  const [savedCloudServerForm, setSavedCloudServerForm] =
+    useState<CloudServerFormValues>(emptyCloudServerFormValues);
   const [connectionStatus, setConnectionStatus] =
     useState<CloudServerConnectivityResult | null>(null);
   const [isCheckingCloudServer, setIsCheckingCloudServer] = useState(false);
@@ -50,9 +120,13 @@ export function SettingsAccount() {
 
   const { showErrorToast, showSuccessToast } = useToast();
 
-  const { blockedUsers, fetchBlockedUsers } = useContext(settingsContext);
+  const { blockedUsers, fetchBlockedUsers, updateUserPreferences } =
+    useContext(settingsContext);
 
   const { formatDate } = useDate();
+  const userPreferences = useAppSelector(
+    (state) => state.userPreferences.value
+  );
 
   const {
     control,
@@ -92,12 +166,17 @@ export function SettingsAccount() {
   }, [fetchUserDetails, updateUserDetails, t, showSuccessToast]);
 
   const runCloudServerConnectivityCheck = useCallback(
-    async (baseUrl?: string | null) => {
+    async (value: CloudServerFormValues) => {
       setIsCheckingCloudServer(true);
 
       try {
-        const result =
-          await window.electron.checkCloudServerConnectivity(baseUrl);
+        const normalizedValue = normalizeCloudServerFormValues({
+          ...value,
+          enabled: true,
+        });
+        const result = await window.electron.checkCloudServerConnectivity(
+          toCloudServerPreferences(normalizedValue)
+        );
         setConnectionStatus(result);
         return result;
       } finally {
@@ -108,14 +187,43 @@ export function SettingsAccount() {
   );
 
   useEffect(() => {
-    if (!isSelfHostedCloudEnabled) return;
+    let isSubscribed = true;
 
     window.electron.getCloudServerConfig().then((config) => {
-      setCloudServerUrl(config.baseUrl);
-      setSavedCloudServerUrl(config.baseUrl);
-      runCloudServerConnectivityCheck(config.baseUrl);
+      if (!isSubscribed) return;
+
+      const nextCloudServerForm = normalizeCloudServerFormValues({
+        enabled:
+          userPreferences?.selfHostedCloudEnabled ??
+          config.isEnabled ??
+          isSelfHostedCloudEnabledByDefault,
+        baseUrl:
+          userPreferences?.cloudServerUrl ??
+          (config.isEnabled ? config.baseUrl : ""),
+        apiUrl: userPreferences?.cloudServerApiUrl ?? "",
+        authUrl: userPreferences?.cloudServerAuthUrl ?? "",
+        checkoutUrl: userPreferences?.cloudServerCheckoutUrl ?? "",
+        nimbusApiUrl: userPreferences?.cloudServerNimbusApiUrl ?? "",
+        wsUrl: userPreferences?.cloudServerWsUrl ?? "",
+      });
+
+      setCloudServerForm(nextCloudServerForm);
+      setSavedCloudServerForm(nextCloudServerForm);
+
+      if (
+        nextCloudServerForm.enabled &&
+        hasCloudServerConfiguration(nextCloudServerForm)
+      ) {
+        runCloudServerConnectivityCheck(nextCloudServerForm);
+      } else {
+        setConnectionStatus(null);
+      }
     });
-  }, [runCloudServerConnectivityCheck]);
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [runCloudServerConnectivityCheck, userPreferences]);
 
   const visibilityOptions = [
     { value: "PUBLIC", label: t("public") },
@@ -145,16 +253,71 @@ export function SettingsAccount() {
   );
 
   const handleApplyCloudServer = useCallback(async () => {
-    const normalizedCloudServerUrl = normalizeCloudServerUrl(cloudServerUrl);
+    const normalizedCloudServerForm =
+      normalizeCloudServerFormValues(cloudServerForm);
+    const cloudServerEntries = [
+      {
+        label: t("cloud_server_url", {
+          defaultValue: "Cloud server URL",
+        }),
+        value: normalizedCloudServerForm.baseUrl,
+      },
+      {
+        label: t("cloud_server_api_url", {
+          defaultValue: "API URL",
+        }),
+        value: normalizedCloudServerForm.apiUrl,
+      },
+      {
+        label: t("cloud_server_auth_url", {
+          defaultValue: "Auth URL",
+        }),
+        value: normalizedCloudServerForm.authUrl,
+      },
+      {
+        label: t("cloud_server_checkout_url", {
+          defaultValue: "Checkout URL",
+        }),
+        value: normalizedCloudServerForm.checkoutUrl,
+      },
+      {
+        label: t("cloud_server_nimbus_api_url", {
+          defaultValue: "Nimbus API URL",
+        }),
+        value: normalizedCloudServerForm.nimbusApiUrl,
+      },
+      {
+        label: t("cloud_server_ws_url", {
+          defaultValue: "WebSocket URL",
+        }),
+        value: normalizedCloudServerForm.wsUrl,
+      },
+    ];
+
+    const invalidCloudServerEntry = cloudServerEntries.find(
+      (entry) => entry.value && !isValidCloudServerUrl(entry.value)
+    );
+
+    if (invalidCloudServerEntry) {
+      showErrorToast(
+        t("must_be_valid_url"),
+        t("cloud_server_url_validation_field", {
+          defaultValue: "{{field}} must be a valid URL.",
+          field: invalidCloudServerEntry.label,
+        })
+      );
+      return;
+    }
 
     if (
-      normalizedCloudServerUrl &&
-      !isValidCloudServerUrl(normalizedCloudServerUrl)
+      normalizedCloudServerForm.enabled &&
+      !hasCloudServerConfiguration(normalizedCloudServerForm)
     ) {
       showErrorToast(
         t("must_be_valid_url"),
-        t("cloud_server_url_validation", {
-          defaultValue: "Enter a valid cloud server URL before saving.",
+        t("cloud_server_url_required", {
+          defaultValue:
+            "Enable self-hosted mode only after configuring a base URL or one of the advanced server URLs.",
         })
       );
       return;
@@ -163,33 +326,49 @@ export function SettingsAccount() {
     setIsSavingCloudServer(true);
 
     try {
-      await window.electron.updateUserPreferences({
-        cloudServerUrl: normalizedCloudServerUrl || null,
-      });
-      setSavedCloudServerUrl(normalizedCloudServerUrl);
-
-      const result = await runCloudServerConnectivityCheck(
-        normalizedCloudServerUrl || null
+      await updateUserPreferences(
+        toCloudServerPreferences(normalizedCloudServerForm)
       );
+      setCloudServerForm(normalizedCloudServerForm);
+      setSavedCloudServerForm(normalizedCloudServerForm);
 
-      if (result.ok) {
+      if (
+        normalizedCloudServerForm.enabled &&
+        hasCloudServerConfiguration(normalizedCloudServerForm)
+      ) {
+        const result = await runCloudServerConnectivityCheck(
+          normalizedCloudServerForm
+        );
+
+        if (result.ok) {
+          showSuccessToast(
+            t("cloud_server_saved", {
+              defaultValue: "Cloud server updated",
+            }),
+            t("cloud_server_saved_description", {
+              defaultValue:
+                "Hydra is now using the selected cloud server. Sign in again if needed.",
+            })
+          );
+        } else {
+          showErrorToast(
+            t("cloud_server_saved_with_issues", {
+              defaultValue: "Cloud server saved with connectivity issues",
+            }),
+            t("cloud_server_saved_with_issues_description", {
+              defaultValue:
+                "Hydra saved the selected cloud server, but one or more connectivity checks failed.",
+            })
+          );
+        }
+      } else {
+        setConnectionStatus(null);
         showSuccessToast(
           t("cloud_server_saved", {
-            defaultValue: "Cloud server updated",
+            defaultValue: "Cloud settings saved",
           }),
           t("cloud_server_saved_description", {
-            defaultValue:
-              "Hydra is now using the selected cloud server. Sign in again if needed.",
-          })
-        );
-      } else {
-        showErrorToast(
-          t("cloud_server_saved_with_issues", {
-            defaultValue: "Cloud server saved with connectivity issues",
-          }),
-          t("cloud_server_saved_with_issues_description", {
-            defaultValue:
-              "Hydra saved the selected cloud server, but one or more connectivity checks failed.",
+            defaultValue: "Hydra is now using its bundled cloud configuration.",
           })
         );
       }
@@ -197,31 +376,49 @@ export function SettingsAccount() {
       setIsSavingCloudServer(false);
     }
   }, [
-    cloudServerUrl,
+    cloudServerForm,
     runCloudServerConnectivityCheck,
     showErrorToast,
     showSuccessToast,
     t,
+    updateUserPreferences,
   ]);
 
   const handleTestCloudServer = useCallback(async () => {
-    const normalizedCloudServerUrl = normalizeCloudServerUrl(cloudServerUrl);
+    const normalizedCloudServerForm =
+      normalizeCloudServerFormValues(cloudServerForm);
+    const invalidCloudServerUrl = [
+      normalizedCloudServerForm.baseUrl,
+      normalizedCloudServerForm.apiUrl,
+      normalizedCloudServerForm.authUrl,
+      normalizedCloudServerForm.checkoutUrl,
+      normalizedCloudServerForm.nimbusApiUrl,
+      normalizedCloudServerForm.wsUrl,
+    ].find((value) => value && !isValidCloudServerUrl(value));
 
-    if (
-      normalizedCloudServerUrl &&
-      !isValidCloudServerUrl(normalizedCloudServerUrl)
-    ) {
+    if (invalidCloudServerUrl) {
       showErrorToast(
         t("must_be_valid_url"),
         t("cloud_server_url_validation", {
-          defaultValue: "Enter a valid cloud server URL before testing.",
+          defaultValue: "Enter valid cloud server URLs before testing.",
+        })
+      );
+      return;
+    }
+
+    if (!hasCloudServerConfiguration(normalizedCloudServerForm)) {
+      showErrorToast(
+        t("must_be_valid_url"),
+        t("cloud_server_url_required_test", {
+          defaultValue:
+            "Enter a base URL or one of the advanced server URLs before testing.",
         })
       );
       return;
     }
 
     const result = await runCloudServerConnectivityCheck(
-      normalizedCloudServerUrl || null
+      normalizedCloudServerForm
     );
 
     if (result.ok) {
@@ -239,7 +436,7 @@ export function SettingsAccount() {
       })
     );
   }, [
-    cloudServerUrl,
+    cloudServerForm,
     runCloudServerConnectivityCheck,
     showErrorToast,
     showSuccessToast,
@@ -363,87 +560,209 @@ export function SettingsAccount() {
           {getHydraCloudSectionContent().description}
         </div>
 
-        {isSelfHostedCloudEnabled && (
-          <div className="settings-account__cloud-server">
+        <div className="settings-account__cloud-server">
+          <CheckboxField
+            label={t("self_hosted_mode", {
+              defaultValue: "Use a self-hosted Hydra Cloud server",
+            })}
+            checked={cloudServerForm.enabled}
+            onChange={() =>
+              setCloudServerForm((prev) => ({
+                ...prev,
+                enabled: !prev.enabled,
+              }))
+            }
+          />
+
+          <small>
+            {cloudServerForm.enabled
+              ? t("self_hosted_mode_enabled_description", {
+                  defaultValue:
+                    "Hydra will use the configured self-hosted server after you save these settings.",
+                })
+              : t("self_hosted_mode_disabled_description", {
+                  defaultValue:
+                    "Hydra will use its bundled cloud configuration until self-hosted mode is enabled.",
+                })}
+          </small>
+
+          <div className="settings-account__cloud-server-fields">
             <TextField
               label={t("cloud_server_url", {
                 defaultValue: "Cloud server URL",
               })}
-              value={cloudServerUrl}
-              onChange={(event) => setCloudServerUrl(event.target.value)}
+              value={cloudServerForm.baseUrl}
+              onChange={(event) =>
+                setCloudServerForm((prev) => ({
+                  ...prev,
+                  baseUrl: event.target.value,
+                }))
+              }
               placeholder="http://localhost:4000"
               hint={t("cloud_server_url_hint", {
                 defaultValue:
-                  "Choose which self-hosted cloud server Hydra should use.",
+                  "Base URL used to derive the API, auth, checkout, nimbus, and WebSocket endpoints unless you override them below.",
               })}
             />
 
-            <div className="settings-account__cloud-server-actions">
-              <Button
-                theme="outline"
-                disabled={isCheckingCloudServer || isSavingCloudServer}
-                onClick={handleTestCloudServer}
-              >
-                {isCheckingCloudServer
-                  ? t("checking_connection", {
-                      defaultValue: "Checking...",
-                    })
-                  : t("validate_download_source")}
-              </Button>
+            <TextField
+              label={t("cloud_server_api_url", {
+                defaultValue: "API URL",
+              })}
+              value={cloudServerForm.apiUrl}
+              onChange={(event) =>
+                setCloudServerForm((prev) => ({
+                  ...prev,
+                  apiUrl: event.target.value,
+                }))
+              }
+              placeholder="http://localhost:4000"
+              hint={t("cloud_server_api_url_hint", {
+                defaultValue: "Optional override for the main API endpoint.",
+              })}
+            />
 
-              <Button
-                theme="outline"
-                disabled={
-                  isCheckingCloudServer ||
-                  isSavingCloudServer ||
-                  normalizeCloudServerUrl(cloudServerUrl) ===
-                    savedCloudServerUrl
-                }
-                onClick={handleApplyCloudServer}
-              >
-                {isSavingCloudServer
-                  ? t("saving", { defaultValue: "Saving..." })
-                  : t("change")}
-              </Button>
-            </div>
+            <TextField
+              label={t("cloud_server_auth_url", {
+                defaultValue: "Auth URL",
+              })}
+              value={cloudServerForm.authUrl}
+              onChange={(event) =>
+                setCloudServerForm((prev) => ({
+                  ...prev,
+                  authUrl: event.target.value,
+                }))
+              }
+              placeholder="http://localhost:4000/auth"
+              hint={t("cloud_server_auth_url_hint", {
+                defaultValue:
+                  "Optional override for the authentication server.",
+              })}
+            />
 
-            {connectionStatus && (
-              <div className="settings-account__cloud-server-status">
-                <small
-                  className={
-                    connectionStatus.ok
-                      ? "settings-account__cloud-server-status-text settings-account__cloud-server-status-text--success"
-                      : "settings-account__cloud-server-status-text settings-account__cloud-server-status-text--error"
-                  }
-                >
-                  {connectionStatus.ok
-                    ? t("cloud_server_status_ok", {
-                        defaultValue: "Cloud server reachable",
-                      })
-                    : t("cloud_server_status_error", {
-                        defaultValue: "Some cloud server checks failed",
-                      })}
-                </small>
+            <TextField
+              label={t("cloud_server_checkout_url", {
+                defaultValue: "Checkout URL",
+              })}
+              value={cloudServerForm.checkoutUrl}
+              onChange={(event) =>
+                setCloudServerForm((prev) => ({
+                  ...prev,
+                  checkoutUrl: event.target.value,
+                }))
+              }
+              placeholder="http://localhost:4000/checkout"
+              hint={t("cloud_server_checkout_url_hint", {
+                defaultValue:
+                  "Optional override for the checkout or billing server.",
+              })}
+            />
 
-                <ul className="settings-account__cloud-server-checks">
-                  {connectionStatus.checks.map((check) => (
-                    <li key={check.key}>
-                      <span>{`${check.key.toUpperCase()}: `}</span>
-                      <span>
-                        {check.ok
-                          ? t("connected", { defaultValue: "Connected" })
-                          : t("connection_failed", {
-                              defaultValue: "Failed",
-                            })}
-                        {check.detail ? ` (${check.detail})` : ""}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            <TextField
+              label={t("cloud_server_nimbus_api_url", {
+                defaultValue: "Nimbus API URL",
+              })}
+              value={cloudServerForm.nimbusApiUrl}
+              onChange={(event) =>
+                setCloudServerForm((prev) => ({
+                  ...prev,
+                  nimbusApiUrl: event.target.value,
+                }))
+              }
+              placeholder="http://localhost:4000"
+              hint={t("cloud_server_nimbus_api_url_hint", {
+                defaultValue:
+                  "Optional override for nimbus and hoster-related requests.",
+              })}
+            />
+
+            <TextField
+              label={t("cloud_server_ws_url", {
+                defaultValue: "WebSocket URL",
+              })}
+              value={cloudServerForm.wsUrl}
+              onChange={(event) =>
+                setCloudServerForm((prev) => ({
+                  ...prev,
+                  wsUrl: event.target.value,
+                }))
+              }
+              placeholder="ws://localhost:4001"
+              hint={t("cloud_server_ws_url_hint", {
+                defaultValue:
+                  "Optional override for the WebSocket server and port.",
+              })}
+            />
           </div>
-        )}
+
+          <div className="settings-account__cloud-server-actions">
+            <Button
+              theme="outline"
+              disabled={isCheckingCloudServer || isSavingCloudServer}
+              onClick={handleTestCloudServer}
+            >
+              {isCheckingCloudServer
+                ? t("checking_connection", {
+                    defaultValue: "Checking...",
+                  })
+                : t("check_connection", {
+                    defaultValue: "Check connection",
+                  })}
+            </Button>
+
+            <Button
+              theme="outline"
+              disabled={
+                isCheckingCloudServer ||
+                isSavingCloudServer ||
+                JSON.stringify(
+                  normalizeCloudServerFormValues(cloudServerForm)
+                ) === JSON.stringify(savedCloudServerForm)
+              }
+              onClick={handleApplyCloudServer}
+            >
+              {isSavingCloudServer
+                ? t("saving", { defaultValue: "Saving..." })
+                : t("save_changes", { defaultValue: "Save changes" })}
+            </Button>
+          </div>
+
+          {connectionStatus && (
+            <div className="settings-account__cloud-server-status">
+              <small
+                className={
+                  connectionStatus.ok
+                    ? "settings-account__cloud-server-status-text settings-account__cloud-server-status-text--success"
+                    : "settings-account__cloud-server-status-text settings-account__cloud-server-status-text--error"
+                }
+              >
+                {connectionStatus.ok
+                  ? t("cloud_server_status_ok", {
+                      defaultValue: "Cloud server reachable",
+                    })
+                  : t("cloud_server_status_error", {
+                      defaultValue: "Some cloud server checks failed",
+                    })}
+              </small>
+
+              <ul className="settings-account__cloud-server-checks">
+                {connectionStatus.checks.map((check) => (
+                  <li key={check.key}>
+                    <span>{`${check.key.toUpperCase()}: `}</span>
+                    <span>
+                      {check.ok
+                        ? t("connected", { defaultValue: "Connected" })
+                        : t("connection_failed", {
+                            defaultValue: "Failed",
+                          })}
+                      {check.detail ? ` (${check.detail})` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
 
         <Button
           className="settings-account__subscription-button"

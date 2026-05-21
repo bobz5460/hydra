@@ -35,6 +35,11 @@
     gap: globals.$spacing-unit;
   }
 
+  &__cloud-server-fields {
+    display: grid;
+    gap: globals.$spacing-unit;
+  }
+
   &__cloud-server-actions {
     display: flex;
     gap: globals.$spacing-unit;

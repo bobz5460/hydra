@@ -13,7 +13,7 @@ import type {
   FriendRequest,
 } from "@types";
 
-const isSelfHostedCloudEnabled = (() => {
+const isSelfHostedCloudEnabledByDefault = (() => {
   const value = import.meta.env.RENDERER_VITE_SELF_HOST_CLOUD?.toLowerCase();
   return value === "true" || value === "1" || value === "yes" || value === "on";
 })();
@@ -23,6 +23,9 @@ export function useUserDetails() {
 
   const { userDetails, profileBackground, friendRequests, friendRequestCount } =
     useAppSelector((state) => state.userDetails);
+  const userPreferences = useAppSelector(
+    (state) => state.userPreferences.value
+  );
 
   const clearUserDetails = useCallback(async () => {
     dispatch(setUserDetails(null));
@@ -132,13 +135,17 @@ export function useUserDetails() {
     globalThis.window.electron.hydraApi.post(`/users/${userId}/unblock`);
 
   const hasActiveSubscription = useMemo(() => {
+    const isSelfHostedCloudEnabled =
+      userPreferences?.selfHostedCloudEnabled ??
+      isSelfHostedCloudEnabledByDefault;
+
     if (isSelfHostedCloudEnabled) {
       return true;
     }
 
     const expiresAt = new Date(userDetails?.subscription?.expiresAt ?? 0);
     return expiresAt > new Date();
-  }, [userDetails]);
+  }, [userDetails, userPreferences?.selfHostedCloudEnabled]);
 
   return {
     userDetails,

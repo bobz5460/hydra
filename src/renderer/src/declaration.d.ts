@@ -56,6 +56,7 @@ declare global {
   }
 
   interface CloudServerConfig {
+    isEnabled: boolean;
     baseUrl: string;
     apiUrl: string;
     authUrl: string;
@@ -407,7 +408,7 @@ declare global {
     openCheckout: () => Promise<void>;
     getCloudServerConfig: () => Promise<CloudServerConfig>;
     checkCloudServerConnectivity: (
-      baseUrl?: string | null
+      preferences?: Partial<UserPreferences> | null
     ) => Promise<CloudServerConnectivityResult>;
     getVersion: () => Promise<string>;
     isStaging: () => Promise<boolean>;

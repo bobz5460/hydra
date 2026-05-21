@@ -1,6 +1,7 @@
 import axios from "axios";
 import { registerEvent } from "../register-event";
 import { SelfHostConfig } from "@main/self-host-config";
+import type { UserPreferences } from "@types";
 
 interface CloudServerConnectivityCheck {
   key: "api" | "auth" | "checkout";
@@ -78,9 +79,14 @@ const requestApiCheck = async (apiUrl: string) => {
 
 const checkCloudServerConnectivity = async (
   _event: Electron.IpcMainInvokeEvent,
-  baseUrl?: string | null
+  preferences?: Partial<UserPreferences> | null
 ): Promise<CloudServerConnectivityResult> => {
-  const config = SelfHostConfig.resolve(baseUrl);
+  const config = preferences
+    ? SelfHostConfig.resolve({
+        ...preferences,
+        selfHostedCloudEnabled: true,
+      })
+    : SelfHostConfig.getConfig();
   const checks = await Promise.all([
     requestApiCheck(config.apiUrl),
     requestCheck("auth", config.authUrl),

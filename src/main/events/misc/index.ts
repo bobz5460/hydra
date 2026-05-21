@@ -1,4 +1,4 @@
- import "./can-install-common-redist";
+import "./can-install-common-redist";
 import "./check-cloud-server-connectivity";
 import "./check-homebrew-folder-exists";
 import "./close-game-launcher-window";

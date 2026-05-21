@@ -96,9 +96,8 @@ export function SettingsAccount() {
       setIsCheckingCloudServer(true);
 
       try {
-        const result = await window.electron.checkCloudServerConnectivity(
-          baseUrl
-        );
+        const result =
+          await window.electron.checkCloudServerConnectivity(baseUrl);
         setConnectionStatus(result);
         return result;
       } finally {
@@ -397,11 +396,14 @@ export function SettingsAccount() {
                 disabled={
                   isCheckingCloudServer ||
                   isSavingCloudServer ||
-                  normalizeCloudServerUrl(cloudServerUrl) === savedCloudServerUrl
+                  normalizeCloudServerUrl(cloudServerUrl) ===
+                    savedCloudServerUrl
                 }
                 onClick={handleApplyCloudServer}
               >
-                {isSavingCloudServer ? t("saving", { defaultValue: "Saving..." }) : t("change")}
+                {isSavingCloudServer
+                  ? t("saving", { defaultValue: "Saving..." })
+                  : t("change")}
               </Button>
             </div>
 

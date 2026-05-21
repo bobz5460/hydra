@@ -18,6 +18,11 @@ export class WSClient {
   static async connect() {
     this.shouldReconnect = true;
 
+    if (!SelfHostConfig.wsUrl) {
+      logger.warn("WS URL is not configured");
+      return;
+    }
+
     try {
       const { token } = await HydraApi.post<{ token: string }>("/auth/ws");
 

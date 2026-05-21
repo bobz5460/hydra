@@ -53,6 +53,93 @@ export class HydraApi {
     return this.userAuth.authToken !== "";
   }
 
+  private static createInstance() {
+    const instance = axios.create({
+      baseURL: SelfHostConfig.apiUrl,
+      headers: { "User-Agent": `Hydra Launcher v${appVersion}` },
+    });
+
+    if (this.ADD_LOG_INTERCEPTOR) {
+      instance.interceptors.request.use(
+        (request) => {
+          logger.log(" ---- REQUEST -----");
+          const data = Array.isArray(request.data)
+            ? request.data
+            : omit(request.data, ["refreshToken"]);
+          logger.log(request.method, request.url, request.params, data);
+          return request;
+        },
+        (error) => {
+          logger.error("request error", error);
+          return Promise.reject(error);
+        }
+      );
+      instance.interceptors.response.use(
+        (response) => {
+          logger.log(" ---- RESPONSE -----");
+          const data = Array.isArray(response.data)
+            ? response.data
+            : omit(response.data, ["username", "accessToken", "refreshToken"]);
+          logger.log(
+            response.status,
+            response.config.method,
+            response.config.url,
+            data
+          );
+          return response;
+        },
+        (error) => {
+          logger.error(" ---- RESPONSE ERROR -----");
+          const { config } = error;
+
+          const data = JSON.parse(config.data ?? null);
+
+          logger.error(
+            config.method,
+            config.baseURL,
+            config.url,
+            omit(config.headers, [
+              "accessToken",
+              "refreshToken",
+              "Authorization",
+            ]),
+            Array.isArray(data)
+              ? data
+              : omit(data, ["accessToken", "refreshToken"])
+          );
+          if (error.response) {
+            logger.error(
+              "Response error:",
+              error.response.status,
+              error.response.data
+            );
+
+            return Promise.reject(error as Error);
+          }
+
+          if (error.request) {
+            const errorData = error.toJSON();
+            logger.error("Request error:", errorData.code, errorData.message);
+            return Promise.reject(
+              new Error(
+                `Request failed with ${errorData.code} ${errorData.message}`
+              )
+            );
+          }
+
+          logger.error("Error", error.message);
+          return Promise.reject(error as Error);
+        }
+      );
+    }
+
+    return instance;
+  }
+
+  public static reconfigure() {
+    this.instance = this.createInstance();
+  }
+
   public static hasActiveSubscription() {
     if (isSelfHostedCloudEnabled) {
       return true;
@@ -124,95 +211,12 @@ export class HydraApi {
   }
 
   static handleSignOut() {
-    this.userAuth = {
-      authToken: "",
-      refreshToken: "",
-      expirationTimestamp: 0,
-      subscription: null,
-    };
-
-    this.post("/auth/logout", {}, { needsAuth: false }).catch(() => {});
+    this.resetSession();
+    this.instance?.post("/auth/logout", {}, {}).catch(() => {});
   }
 
   static async setupApi() {
-    this.instance = axios.create({
-      baseURL: SelfHostConfig.apiUrl,
-      headers: { "User-Agent": `Hydra Launcher v${appVersion}` },
-    });
-
-    if (this.ADD_LOG_INTERCEPTOR) {
-      this.instance.interceptors.request.use(
-        (request) => {
-          logger.log(" ---- REQUEST -----");
-          const data = Array.isArray(request.data)
-            ? request.data
-            : omit(request.data, ["refreshToken"]);
-          logger.log(request.method, request.url, request.params, data);
-          return request;
-        },
-        (error) => {
-          logger.error("request error", error);
-          return Promise.reject(error);
-        }
-      );
-      this.instance.interceptors.response.use(
-        (response) => {
-          logger.log(" ---- RESPONSE -----");
-          const data = Array.isArray(response.data)
-            ? response.data
-            : omit(response.data, ["username", "accessToken", "refreshToken"]);
-          logger.log(
-            response.status,
-            response.config.method,
-            response.config.url,
-            data
-          );
-          return response;
-        },
-        (error) => {
-          logger.error(" ---- RESPONSE ERROR -----");
-          const { config } = error;
-
-          const data = JSON.parse(config.data ?? null);
-
-          logger.error(
-            config.method,
-            config.baseURL,
-            config.url,
-            omit(config.headers, [
-              "accessToken",
-              "refreshToken",
-              "Authorization",
-            ]),
-            Array.isArray(data)
-              ? data
-              : omit(data, ["accessToken", "refreshToken"])
-          );
-          if (error.response) {
-            logger.error(
-              "Response error:",
-              error.response.status,
-              error.response.data
-            );
-
-            return Promise.reject(error as Error);
-          }
-
-          if (error.request) {
-            const errorData = error.toJSON();
-            logger.error("Request error:", errorData.code, errorData.message);
-            return Promise.reject(
-              new Error(
-                `Request failed with ${errorData.code} ${errorData.message}`
-              )
-            );
-          }
-
-          logger.error("Error", error.message);
-          return Promise.reject(error as Error);
-        }
-      );
-    }
+    this.reconfigure();
 
     const result = await db.getMany<string>([levelKeys.auth, levelKeys.user], {
       valueEncoding: "json",
@@ -308,29 +312,33 @@ export class HydraApi {
         err.response?.data
       );
 
-      this.userAuth = {
-        authToken: "",
-        expirationTimestamp: 0,
-        refreshToken: "",
-        subscription: null,
-      };
-
-      db.batch([
-        {
-          type: "del",
-          key: levelKeys.auth,
-        },
-        {
-          type: "del",
-          key: levelKeys.user,
-        },
-      ]);
-
-      this.sendSignOutEvent();
+      this.resetSession();
     }
 
     throw err;
   };
+
+  public static resetSession() {
+    this.userAuth = {
+      authToken: "",
+      expirationTimestamp: 0,
+      refreshToken: "",
+      subscription: null,
+    };
+
+    void db.batch([
+      {
+        type: "del",
+        key: levelKeys.auth,
+      },
+      {
+        type: "del",
+        key: levelKeys.user,
+      },
+    ]);
+
+    this.sendSignOutEvent();
+  }
 
   private static async validateOptions(options?: HydraApiOptions) {
     const needsAuth = options?.needsAuth == undefined || options.needsAuth;

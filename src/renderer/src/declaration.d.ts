@@ -55,6 +55,28 @@ declare global {
     export default content;
   }
 
+  interface CloudServerConfig {
+    baseUrl: string;
+    apiUrl: string;
+    authUrl: string;
+    checkoutUrl: string;
+    nimbusApiUrl: string;
+    wsUrl: string;
+  }
+
+  interface CloudServerConnectivityCheck {
+    key: "api" | "auth" | "checkout";
+    ok: boolean;
+    url: string;
+    detail: string;
+  }
+
+  interface CloudServerConnectivityResult {
+    ok: boolean;
+    baseUrl: string;
+    checks: CloudServerConnectivityCheck[];
+  }
+
   interface Electron {
     /* Torrenting */
     startGameDownload: (
@@ -383,6 +405,10 @@ declare global {
     /* Misc */
     openExternal: (src: string) => Promise<void>;
     openCheckout: () => Promise<void>;
+    getCloudServerConfig: () => Promise<CloudServerConfig>;
+    checkCloudServerConnectivity: (
+      baseUrl?: string | null
+    ) => Promise<CloudServerConnectivityResult>;
     getVersion: () => Promise<string>;
     isStaging: () => Promise<boolean>;
     ping: () => string;

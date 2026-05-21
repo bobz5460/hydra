@@ -1,4 +1,4 @@
-import { Avatar, Button, SelectField } from "@renderer/components";
+import { Avatar, Button, SelectField, TextField } from "@renderer/components";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useDate, useToast, useUserDetails } from "@renderer/hooks";
@@ -17,12 +17,38 @@ interface FormValues {
   profileVisibility: "PUBLIC" | "FRIENDS" | "PRIVATE";
 }
 
+const isSelfHostedCloudEnabled = (() => {
+  const value = import.meta.env.RENDERER_VITE_SELF_HOST_CLOUD?.toLowerCase();
+  return value === "true" || value === "1" || value === "yes" || value === "on";
+})();
+
+const normalizeCloudServerUrl = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+};
+
+const isValidCloudServerUrl = (value: string) => {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 export function SettingsAccount() {
   const { t } = useTranslation("settings");
 
   const [isUnblocking, setIsUnblocking] = useState(false);
+  const [cloudServerUrl, setCloudServerUrl] = useState("");
+  const [savedCloudServerUrl, setSavedCloudServerUrl] = useState("");
+  const [connectionStatus, setConnectionStatus] =
+    useState<CloudServerConnectivityResult | null>(null);
+  const [isCheckingCloudServer, setIsCheckingCloudServer] = useState(false);
+  const [isSavingCloudServer, setIsSavingCloudServer] = useState(false);
 
-  const { showSuccessToast } = useToast();
+  const { showErrorToast, showSuccessToast } = useToast();
 
   const { blockedUsers, fetchBlockedUsers } = useContext(settingsContext);
 
@@ -65,6 +91,32 @@ export function SettingsAccount() {
     };
   }, [fetchUserDetails, updateUserDetails, t, showSuccessToast]);
 
+  const runCloudServerConnectivityCheck = useCallback(
+    async (baseUrl?: string | null) => {
+      setIsCheckingCloudServer(true);
+
+      try {
+        const result =
+          await window.electron.checkCloudServerConnectivity(baseUrl);
+        setConnectionStatus(result);
+        return result;
+      } finally {
+        setIsCheckingCloudServer(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!isSelfHostedCloudEnabled) return;
+
+    window.electron.getCloudServerConfig().then((config) => {
+      setCloudServerUrl(config.baseUrl);
+      setSavedCloudServerUrl(config.baseUrl);
+      runCloudServerConnectivityCheck(config.baseUrl);
+    });
+  }, [runCloudServerConnectivityCheck]);
+
   const visibilityOptions = [
     { value: "PUBLIC", label: t("public") },
     { value: "FRIENDS", label: t("friends_only") },
@@ -91,6 +143,108 @@ export function SettingsAccount() {
     },
     [unblockUser, fetchBlockedUsers, t, showSuccessToast]
   );
+
+  const handleApplyCloudServer = useCallback(async () => {
+    const normalizedCloudServerUrl = normalizeCloudServerUrl(cloudServerUrl);
+
+    if (
+      normalizedCloudServerUrl &&
+      !isValidCloudServerUrl(normalizedCloudServerUrl)
+    ) {
+      showErrorToast(
+        t("must_be_valid_url"),
+        t("cloud_server_url_validation", {
+          defaultValue: "Enter a valid cloud server URL before saving.",
+        })
+      );
+      return;
+    }
+
+    setIsSavingCloudServer(true);
+
+    try {
+      await window.electron.updateUserPreferences({
+        cloudServerUrl: normalizedCloudServerUrl || null,
+      });
+      setSavedCloudServerUrl(normalizedCloudServerUrl);
+
+      const result = await runCloudServerConnectivityCheck(
+        normalizedCloudServerUrl || null
+      );
+
+      if (result.ok) {
+        showSuccessToast(
+          t("cloud_server_saved", {
+            defaultValue: "Cloud server updated",
+          }),
+          t("cloud_server_saved_description", {
+            defaultValue:
+              "Hydra is now using the selected cloud server. Sign in again if needed.",
+          })
+        );
+      } else {
+        showErrorToast(
+          t("cloud_server_saved_with_issues", {
+            defaultValue: "Cloud server saved with connectivity issues",
+          }),
+          t("cloud_server_saved_with_issues_description", {
+            defaultValue:
+              "Hydra saved the selected cloud server, but one or more connectivity checks failed.",
+          })
+        );
+      }
+    } finally {
+      setIsSavingCloudServer(false);
+    }
+  }, [
+    cloudServerUrl,
+    runCloudServerConnectivityCheck,
+    showErrorToast,
+    showSuccessToast,
+    t,
+  ]);
+
+  const handleTestCloudServer = useCallback(async () => {
+    const normalizedCloudServerUrl = normalizeCloudServerUrl(cloudServerUrl);
+
+    if (
+      normalizedCloudServerUrl &&
+      !isValidCloudServerUrl(normalizedCloudServerUrl)
+    ) {
+      showErrorToast(
+        t("must_be_valid_url"),
+        t("cloud_server_url_validation", {
+          defaultValue: "Enter a valid cloud server URL before testing.",
+        })
+      );
+      return;
+    }
+
+    const result = await runCloudServerConnectivityCheck(
+      normalizedCloudServerUrl || null
+    );
+
+    if (result.ok) {
+      showSuccessToast(
+        t("cloud_server_connection_success", {
+          defaultValue: "Cloud server is reachable",
+        })
+      );
+      return;
+    }
+
+    showErrorToast(
+      t("cloud_server_connection_failed", {
+        defaultValue: "Cloud server check failed",
+      })
+    );
+  }, [
+    cloudServerUrl,
+    runCloudServerConnectivityCheck,
+    showErrorToast,
+    showSuccessToast,
+    t,
+  ]);
 
   const getHydraCloudSectionContent = () => {
     const hasSubscribedBefore = Boolean(userDetails?.subscription?.expiresAt);
@@ -208,6 +362,88 @@ export function SettingsAccount() {
         <div className="settings-account__subscription-info">
           {getHydraCloudSectionContent().description}
         </div>
+
+        {isSelfHostedCloudEnabled && (
+          <div className="settings-account__cloud-server">
+            <TextField
+              label={t("cloud_server_url", {
+                defaultValue: "Cloud server URL",
+              })}
+              value={cloudServerUrl}
+              onChange={(event) => setCloudServerUrl(event.target.value)}
+              placeholder="http://localhost:4000"
+              hint={t("cloud_server_url_hint", {
+                defaultValue:
+                  "Choose which self-hosted cloud server Hydra should use.",
+              })}
+            />
+
+            <div className="settings-account__cloud-server-actions">
+              <Button
+                theme="outline"
+                disabled={isCheckingCloudServer || isSavingCloudServer}
+                onClick={handleTestCloudServer}
+              >
+                {isCheckingCloudServer
+                  ? t("checking_connection", {
+                      defaultValue: "Checking...",
+                    })
+                  : t("validate_download_source")}
+              </Button>
+
+              <Button
+                theme="outline"
+                disabled={
+                  isCheckingCloudServer ||
+                  isSavingCloudServer ||
+                  normalizeCloudServerUrl(cloudServerUrl) ===
+                    savedCloudServerUrl
+                }
+                onClick={handleApplyCloudServer}
+              >
+                {isSavingCloudServer
+                  ? t("saving", { defaultValue: "Saving..." })
+                  : t("change")}
+              </Button>
+            </div>
+
+            {connectionStatus && (
+              <div className="settings-account__cloud-server-status">
+                <small
+                  className={
+                    connectionStatus.ok
+                      ? "settings-account__cloud-server-status-text settings-account__cloud-server-status-text--success"
+                      : "settings-account__cloud-server-status-text settings-account__cloud-server-status-text--error"
+                  }
+                >
+                  {connectionStatus.ok
+                    ? t("cloud_server_status_ok", {
+                        defaultValue: "Cloud server reachable",
+                      })
+                    : t("cloud_server_status_error", {
+                        defaultValue: "Some cloud server checks failed",
+                      })}
+                </small>
+
+                <ul className="settings-account__cloud-server-checks">
+                  {connectionStatus.checks.map((check) => (
+                    <li key={check.key}>
+                      <span>{`${check.key.toUpperCase()}: `}</span>
+                      <span>
+                        {check.ok
+                          ? t("connected", { defaultValue: "Connected" })
+                          : t("connection_failed", {
+                              defaultValue: "Failed",
+                            })}
+                        {check.detail ? ` (${check.detail})` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         <Button
           className="settings-account__subscription-button"

@@ -1,9 +1,11 @@
 import "./can-install-common-redist";
+import "./check-cloud-server-connectivity";
 import "./check-homebrew-folder-exists";
 import "./close-game-launcher-window";
 import "./delete-temp-file";
 import "./show-game-launcher-window";
 import "./get-hydra-decky-plugin-info";
+import "./get-cloud-server-config";
 import "./get-image-data-url";
 import "./hydra-api-call";
 import "./install-common-redist";

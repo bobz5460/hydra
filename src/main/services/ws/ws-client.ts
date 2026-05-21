@@ -5,6 +5,7 @@ import { logger } from "../logger";
 import { friendRequestEvent } from "./events/friend-request";
 import { friendGameSessionEvent } from "./events/friend-game-session";
 import { notificationEvent } from "./events/notification";
+import { SelfHostConfig } from "@main/self-host-config";
 
 export class WSClient {
   private static ws: WebSocket | null = null;
@@ -20,7 +21,7 @@ export class WSClient {
     try {
       const { token } = await HydraApi.post<{ token: string }>("/auth/ws");
 
-      this.ws = new WebSocket(import.meta.env.MAIN_VITE_WS_URL, {
+      this.ws = new WebSocket(SelfHostConfig.wsUrl, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

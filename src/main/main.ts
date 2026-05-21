@@ -28,6 +28,7 @@ import {
 import { migrateDownloadSources } from "./helpers/migrate-download-sources";
 import { getDirSize } from "./services/download/helpers";
 import { GofileApi } from "./services/hosters";
+import { SelfHostConfig } from "./self-host-config";
 
 const hasMissingSeedFiles = async (download: Download): Promise<boolean> => {
   if (!download.folderName) return false;
@@ -60,6 +61,8 @@ export const loadState = async () => {
       valueEncoding: "json",
     }
   );
+
+  SelfHostConfig.applyPreferences(userPreferences);
 
   await import("./events");
 

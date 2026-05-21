@@ -29,6 +29,43 @@
     place-self: flex-start;
   }
 
+  &__cloud-server {
+    display: flex;
+    flex-direction: column;
+    gap: globals.$spacing-unit;
+  }
+
+  &__cloud-server-actions {
+    display: flex;
+    gap: globals.$spacing-unit;
+    flex-wrap: wrap;
+  }
+
+  &__cloud-server-status {
+    display: flex;
+    flex-direction: column;
+    gap: calc(globals.$spacing-unit / 2);
+  }
+
+  &__cloud-server-status-text {
+    &--success {
+      color: globals.$success-color;
+    }
+
+    &--error {
+      color: globals.$danger-color;
+    }
+  }
+
+  &__cloud-server-checks {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: calc(globals.$spacing-unit / 2);
+  }
+
   &__blocked-users {
     list-style: none;
     margin: 0;

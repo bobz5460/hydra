@@ -4,7 +4,8 @@ import type { UserPreferences } from "@types";
 import i18next from "i18next";
 import { db, levelKeys } from "@main/level";
 import { patchUserProfile } from "../profile/update-profile";
-import { DownloadManager } from "@main/services";
+import { DownloadManager, HydraApi, WSClient } from "@main/services";
+import { SelfHostConfig } from "@main/self-host-config";
 
 const updateUserPreferences = async (
   _event: Electron.IpcMainInvokeEvent,
@@ -24,12 +25,14 @@ const updateUserPreferences = async (
     patchUserProfile({ language: preferences.language }).catch(() => {});
   }
 
+  const nextUserPreferences = {
+    ...userPreferences,
+    ...preferences,
+  };
+
   await db.put<string, UserPreferences>(
     levelKeys.userPreferences,
-    {
-      ...userPreferences,
-      ...preferences,
-    },
+    nextUserPreferences,
     {
       valueEncoding: "json",
     }
@@ -39,6 +42,13 @@ const updateUserPreferences = async (
     await DownloadManager.applyDownloadSpeedLimit(
       preferences.maxDownloadSpeedBytesPerSecond ?? null
     );
+  }
+
+  if (Object.hasOwn(preferences, "cloudServerUrl")) {
+    SelfHostConfig.applyPreferences(nextUserPreferences);
+    HydraApi.reconfigure();
+    WSClient.close();
+    HydraApi.resetSession();
   }
 };
 

@@ -21,8 +21,9 @@ const normalizeBaseUrl = (value?: string | null) => {
 
 const parseBoolean = (value?: string | boolean | null) => {
   if (typeof value === "boolean") return value;
+  if (value == null) return false;
 
-  const normalizedValue = value?.toLowerCase();
+  const normalizedValue = value.toLowerCase();
   return (
     normalizedValue === "true" ||
     normalizedValue === "1" ||
